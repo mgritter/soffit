@@ -19,8 +19,8 @@ setup(
     long_description = long_description,
     long_description_content_type = "text/markdown",
 
-    packages = find_packages(),
-    install_requires = ['pyparsing','ortools'],
+    packages = 'soffit',
+    install_requires = ['pyparsing','ortools','networkx'],
 
     url = "https://github.com/mgritter/soffit",
     author = "Mark Gritter",

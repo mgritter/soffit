@@ -11,11 +11,16 @@
   * Would need to extend format
   * pydot parsing library exists
   
-## JSON
+## JSON (parsed text strings)
   * more tracery-like
   * larger existing toolchain
   * more compatible with JavaScript if ported to a front-end library
   * closer to Tracery inspiration
+
+## JSON (pure)
+  * No parsing at all, but more difficult to write
+  * Less ambiguity
+  * Some existing tools seem to do it this way?
 
 ## Examples
 
@@ -47,7 +52,9 @@ Directed graphs?  Use -- for undirected and -> for directed like dot?
 }
 ```
 
-Alternatives: use list, like Tracery
+Use semicolons instead of commas to be more like DOT?
+
+Alternative expansions: use list, like Tracery
 
 ```javascript
 {
@@ -56,6 +63,8 @@ Alternatives: use list, like Tracery
               "A--B,A--C,A--D" ] 
 }
 ```
+
+## Tags and Attributes
 
 Tags: use square brackets and lowercase?
 Or use something else to distinguish from alternative notation?
@@ -90,13 +99,30 @@ Could require a prefix for variable labels.
 }
 ```
 
-${x} vs {$x}?  Bash-like syntax?
+`${x}` vs `{$x}`?  Bash-like syntax?
 
 Could have special operators
 
+```
 ${x:something}
 $x$increment
 {$x something pipeline blah}
+```
+
+Could we go with pure Dot syntax?
+
+```javascript
+{
+   "Z--Z [x]; Z [y]" : "Z--Z []; Z--A [x]; Z--B [y]",
+}
+```
+
+This would require separate declarations for attributes on edges and on
+nodes, so it's a little less compact compared to the ideas above.
+
+On the other hand, being able to output dot attributes seems attractive.
+
+## Non-injective mappings
 
 I need some way to represent non-injective mappings.  For example, the rule
 

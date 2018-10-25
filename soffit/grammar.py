@@ -45,6 +45,8 @@ class RandomRule(object):
 class GraphGrammar(object):
     def __init__( self ):
         self.rules = []
+        self.extensions = {}
+        self.start = None
 
     def addRule( self, left, right ):
         """Add a rule to the grammar; left and right should be networkx

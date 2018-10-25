@@ -21,6 +21,7 @@ import json
 from pyparsing import Word, Literal, OneOrMore, Optional, Group, ParseException, StringEnd
 from pyparsing import delimitedList
 import networkx as nx
+from soffit.grammar import GraphGrammar
 
 # Copied from Swift,
 # see https://docs.swift.org/swift-book/ReferenceManual/LexicalStructure.html
@@ -180,4 +181,60 @@ def parseGraphString( inputString, quiet=False ):
 
     return ret.graph
             
-    
+def _parseGraphGrammar_v01( obj, quiet = False ):
+    gg = GraphGrammar()
+    for (l,r) in obj.items():
+        if l == "extensions":
+            # FIXME: check for dict-like object?
+            gg.extensions = r
+        elif l == "version":
+            pass
+        elif l == "start":
+            gg.start = parseGraphString( r )
+            if gg.start == None:
+                print( "Error parsing start position." )
+                return None
+        else:
+            lg = parseGraphString( l )
+            if lg == None:
+                print( "Error parsing left-hand graph ", repr(lg) )
+                return None
+            
+            if isinstance( r, list ):
+                rgList = []
+                for i in r:
+                    rg = parseGraphString( i )
+                    if rg == None:
+                        print( "Error parsing right-hand graph ", repr(rg) )
+                        return None
+                    rgList.append( rg )
+                gg.addChoice( lg, rgList )
+            else:
+                rg = parseGraphString( r )
+                if rg == None:
+                    print( "Error parsing right-hand graph ", repr(rg) )
+                    return None
+                gg.addRule( lg, rg )
+        
+    return gg                
+
+
+def _dispatchGrammarParse( ggJson, quiet = False ):
+    if 'version' not in ggJson or ggJson['version'] == "0.1":
+        return _parseGraphGrammar_v01( ggJson )
+    else:
+        if not quiet:
+            print( "Unknown version", ggJson['version'] )
+        return None
+
+def parseGraphGrammar( inputString, quiet=False ):
+    # FIXME: handle parse error
+    ggJson = json.loads( inputString )
+    return _dispatchGrammarParse( ggJson )
+
+def loadGraphGrammar( f, quiet=False ):
+    # FIXME: handle parse error
+    ggJson = json.load( f )
+    return _dispatchGrammarParse( ggJson )
+
+

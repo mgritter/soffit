@@ -19,7 +19,7 @@
 
 import unittest
 from unittest import skip
-from soffit.parse import parseGraphString, nodeName
+from soffit.parse import parseGraphString, nodeName, parseGraphGrammar
 import networkx as nx
 
 class TestGraphParsing(unittest.TestCase):
@@ -169,8 +169,22 @@ class TestGraphParsing(unittest.TestCase):
         self.assertIsNone( parseGraphString( "+", quiet=True ) )
         self.assertIsNone( parseGraphString( "-", quiet=True ) )
         self.assertIsNone( parseGraphString( "Y.Z", quiet=True ) )
-        
 
+v01a = """{
+  "version" : "0.1",
+  "start" : "A--B",
+  "A--B" : "A--B--C; B--D",
+  "A--B--C--D" : [ "A--B--C--D--A", "A--B; C--D;" ]
+}
+"""
+        
+class TestGrammarParsing(unittest.TestCase):
+    def test_v01_grammar(self):
+        g = parseGraphGrammar( v01a )
+        self.assertIsNotNone( g )
+        self.assertIsNotNone( g.start )
+        self.assertEqual( len( g.rules ), 2 )
+        
 if __name__ == '__main__':
     unittest.main()
 

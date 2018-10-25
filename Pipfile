@@ -9,6 +9,7 @@ verify_ssl = true
 pyparsing = "*"
 ortools = "*"
 networkx = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.5"

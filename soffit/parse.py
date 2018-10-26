@@ -18,7 +18,7 @@
 #
 
 import json
-from pyparsing import Word, Literal, OneOrMore, Optional, Group, ParseException, StringEnd
+from pyparsing import Word, Literal, OneOrMore, Optional, Group, ParseException, StringEnd, QuotedString
 from pyparsing import ParseResults
 from pyparsing import delimitedList
 import networkx as nx
@@ -142,6 +142,7 @@ def mergeJoin( s, loc, toks, flatten = False ):
             flat.append( t )
         else:
             flat.extend( t )
+                
             if 'join' in t:
                 for (k,v) in t['join'].items():
                     # Follow to the root of the set
@@ -155,7 +156,7 @@ def mergeJoin( s, loc, toks, flatten = False ):
 
     if flatten:
         ret = ParseResults( flat )
-        ret['join'] = union 
+        ret['join'] = union
         return ret
     else:
         toks['join'] = union
@@ -163,11 +164,22 @@ def mergeJoin( s, loc, toks, flatten = False ):
 def mergeJoinFlatten( s, loc, toks ):
     return mergeJoin( s, loc, toks, flatten=True )
         
-edges = ( Group( nodeName ) + OneOrMore( destination ) ).setParseAction( mergeJoinFlatten )
+# Put in a tag but not in the result?
+tag = QuotedString( quoteChar="[", endQuoteChar="]", escChar="\\" )("tag")
 
-vertexOnly = nodeName
+def dropTag( s, loc, toks ):
+    if 'tag' in toks[0]:
+        # The last element is copied into the 'tags' attribute already
+        # so we don't need to parse it further
+        # but... calling suppress() doesn't give it a result name.
+        del toks[0][-1]
+    return toks
+            
+edges = ( Group( nodeName ) + OneOrMore( destination ) ).setParseAction( mergeJoinFlatten ) + Optional( tag )
 
-graphElement = Group( edges | vertexOnly )
+vertexOnly = nodeName + Optional( tag )
+
+graphElement = Group( edges | vertexOnly ).setParseAction( dropTag )
 
 graph = delimitedList( graphElement, semicolon ).setParseAction( mergeJoin ) + \
         Optional( semicolon ).suppress() + StringEnd()
@@ -185,7 +197,17 @@ class MergeDisallowedError(ParseError):
 
     def prettyPrint( self ):
         print( "Graph has merged nodes." )
-    
+
+class MismatchedTagError(ParseError):
+    """A node identifier appeared with inconsistent tags attached."""
+    def __init__( self, node, newTag, oldTag ):
+        self.node = node
+        self.newTag = newTag
+        self.oldTag = oldTag
+
+    def prettyPrint( self ):
+        print( "Vertex ID '{}' was given tag '{}' when it already had tag '{}'".format( self.node, self.newTag, self.oldTag ) )
+
 class GraphParsingError(ParseError):
     """An error while parsing a graph."""
     def __init__( self, graph, parseError ):
@@ -235,7 +257,7 @@ class GrammarParsingError(ParseError):
             self.graphError.prettyPrint()
         else:
             print( '  Rule "' + self.left + '" : "' + self.right + '"' )
-                   
+
 class WorkingGraph(object):
     def __init__( self, join = {} ):
         # Start with an undirected graph, convert if necessary
@@ -243,22 +265,41 @@ class WorkingGraph(object):
         self.graph = nx.Graph( join = join )
         self.undirected = True
 
-    def addNode( self, n ):
-        self.graph.add_node( n )
-        
-    def addDirected( self, a, b ):
+    def addNode( self, n, tag = None ):        
+        if tag is None:
+            self.graph.add_node( n )
+        else:
+            if n not in self.graph.nodes: 
+                self.graph.add_node( n, tag = tag )
+            else:
+                existing = self.graph.nodes[n]
+                if 'tag' in existing and existing['tag'] != tag:
+                    raise MismatchedTagError( n, tag, existing['tag'] )
+            
+    def addDirected( self, a, b, tag = None ):
         if self.undirected:
             self.undirected = False
             self.graph = self.graph.to_directed()
 
-        self.graph.add_edge( a, b )
-
-    def addUndirected( self, a, b ):
-        if self.undirected:
+        if tag is None:
             self.graph.add_edge( a, b )
         else:
-            self.graph.add_edge( a, b )
-            self.graph.add_edge( b, a )
+            self.graph.add_edge( a, b, tag=tag )
+
+    def addUndirected( self, a, b, tag = None ):
+        if self.undirected:
+            if tag is None:
+                self.graph.add_edge( a, b )
+            else:
+                self.graph.add_edge( a, b, tag=tag )
+        else:
+            if tag is None:
+                self.graph.add_edge( a, b )
+                self.graph.add_edge( b, a )
+            else:
+                self.graph.add_edge( a, b, tag=tag )
+                self.graph.add_edge( b, a, tag=tag )
+                
 
 # From python 3 itertools recipes
 def grouper(iterable, n, fillvalue=None):
@@ -279,17 +320,18 @@ def parseGraphString( inputString, quiet=False, joinAllowed=False ):
     ret = WorkingGraph( join=p['join'] )
     
     for element in p:
-        if len( element ) == 1:
-            ret.addNode( element[0] )
+        if len( element ) == 1:            
+            ret.addNode( element[0], element.get( 'tag', None ) )
         else:
             prev = element[0]
+            tag = element.get( 'tag', None )
             for (direction, vertex) in grouper( element[1:], 2 ):
                 if direction == "--":
-                    ret.addUndirected( prev, vertex )
+                    ret.addUndirected( prev, vertex, tag )
                 elif direction == "->":
-                    ret.addDirected( prev, vertex )
+                    ret.addDirected( prev, vertex, tag )
                 elif direction == "<-":
-                    ret.addDirected( vertex, prev )
+                    ret.addDirected( vertex, prev, tag )
                 else:
                     assert False, "Invalid direction slipped through parser"
                 prev = vertex
@@ -311,6 +353,8 @@ def _parseGraphGrammar_v01( obj, quiet = False ):
                 raise GrammarParsingError( l, r, "bad start graph", gpe )
             except MergeDisallowedError as mde:
                 raise GrammarParsingError( l, r, "merge syntax not allowed in starting rule" )
+            except MismatchedTagError as mte:
+                raise GrammarParsingError( l, r, "inconsistent tags in start graph", mte )                        
         else:
             try:
                 lg = parseGraphString( l, joinAllowed=False )
@@ -318,7 +362,9 @@ def _parseGraphGrammar_v01( obj, quiet = False ):
                 raise GrammarParsingError( l, r, "bad left-hand graph", gpe )
             except MergeDisallowedError as mde:
                 raise GrammarParsingError( l, r, "merge syntax not allowed in left side of rule" )
-            
+            except MismatchedTagError as mte:
+                raise GrammarParsingError( l, r, "inconsistent tags in left side of rule", mte )
+                        
             if isinstance( r, list ):
                 rgList = []
                 for i in r:
@@ -327,6 +373,8 @@ def _parseGraphGrammar_v01( obj, quiet = False ):
                         rgList.append( rg )
                     except GraphParsingError as gpe:
                         raise GrammarParsingError( l, i, "bad right-hand graph in choice", gpe )                        
+                    except MismatchedTagError as mte:
+                        raise GrammarParsingError( l, i, "bad right-hand graph in choice", mte )                        
                 gg.addChoice( lg, rgList )
             else:
                 try:
@@ -334,6 +382,8 @@ def _parseGraphGrammar_v01( obj, quiet = False ):
                     gg.addRule( lg, rg )
                 except GraphParsingError as gpe:
                     raise GrammarParsingError( l, r, "bad right-hand graph", gpe )                        
+                except MismatchedTagError as mte:
+                    raise GrammarParsingError( l, r, "bad right-hand graph", mte )                        
 
     return gg                
 

@@ -217,7 +217,74 @@ class TestGraphParsing(unittest.TestCase):
     def test_merged_graphs_disallowed( self ):
         with self.assertRaises( ParseError ):
             parseGraphString( "X^A--Y^B--Z^C", joinAllowed=False )
+
+    def test_tagged_nodes( self ):
+        g = parseGraphString( "P [x]; Q[2]  ; R; Z [a\[b\]=c d=e]" )
+        self.assertEqual( len( g.nodes ), 4 )
+        self.assertIn( 'tag', g.nodes['P'] )
+        self.assertIn( 'tag', g.nodes['Q'] )
+        self.assertNotIn( 'tag', g.nodes['R'] )
+        self.assertIn( 'tag', g.nodes['Z'] )
+        self.assertEqual( g.nodes['P']['tag'], "x" )
+        self.assertEqual( g.nodes['Q']['tag'], "2" )
+        self.assertEqual( g.nodes['Z']['tag'], "a[b]=c d=e" )
         
+    def test_tagged_edges( self ):
+        g = parseGraphString( "P -- Q [2]; A--B--C[!]  ;" )
+        self.assertEqual( len( g.nodes ), 5 )
+        self.assertEqual( len( g.edges ), 3 )
+        self.assertNotIn( 'tag', g.nodes['P'] )
+        self.assertNotIn( 'tag', g.nodes['Q'] )
+        self.assertNotIn( 'tag', g.nodes['A'] )
+        self.assertNotIn( 'tag', g.nodes['B'] )
+        self.assertNotIn( 'tag', g.nodes['C'] )
+        self.assertIn( 'tag', g.edges['P','Q'] )
+        self.assertIn( 'tag', g.edges['Q','P'] )
+        self.assertIn( 'tag', g.edges['A','B'] )
+        self.assertIn( 'tag', g.edges['B','C'] )
+        self.assertEqual( g.edges['P','Q']['tag'], '2' )
+        self.assertEqual( g.edges['Q','P']['tag'], '2' )
+        self.assertEqual( g.edges['A','B']['tag'], '!' )
+        self.assertEqual( g.edges['C','B']['tag'], '!' )
+
+    def test_tag_errors( self ):
+        with self.assertRaises( ParseError ):
+            parseGraphString( "X[3]--Y" )
+
+        with self.assertRaises( ParseError ):
+            parseGraphString( "X--Y[4][5];" )
+
+        with self.assertRaises( ParseError ):
+            parseGraphString( "[6]X;" )
+
+    def test_christmas_tree( self ):
+        g = parseGraphString( "P[x]; Q[y]; P -- Q^R[z]; P--Z99[x\[\]]", joinAllowed=True )
+        self.assertEqual( len( g.nodes ), 3 )
+        self.assertEqual( len( g.edges ), 2 )
+        self.assertEqual( g.nodes['P']['tag'], 'x' )
+        self.assertEqual( g.nodes['Q']['tag'], 'y' )
+        self.assertEqual( g['P']['Q']['tag'], 'z' )
+        self.assertEqual( g['P']['Z99']['tag'], 'x[]' )
+        self.assertEqual( g.graph['join'], { 'R' : 'Q' } )
+        
+    def test_redefine_tag( self ):
+        with self.assertRaises( ParseError ):
+            parseGraphString( "P[x]; Q[y]; P[z]" )
+
+        g = parseGraphString( "P[x]; Q[y]; P" )
+        self.assertEqual( len( g.nodes ), 2 )
+
+        g = parseGraphString( "P[x]; Q[y]; P [x]" )
+        self.assertEqual( len( g.nodes ), 2 )
+        self.assertEqual( g.nodes['P']['tag'], 'x' )
+
+    def test_redefine_edge( self ):        
+        with self.assertRaises( ParseError ):
+            parseGraphString( "P -- Q[x]; Q -- P[x];" )
+
+        with self.assertRaises( ParseError ):
+            parseGraphString( "P -- Q[x]; A -> B -> C[y]; B -> P -> Q[z];" )
+
 v01a = """{
   "version" : "0.1",
   "start" : "A--B",

@@ -20,6 +20,7 @@
 import unittest
 from unittest import skip
 from soffit.parse import parseGraphString, nodeName, parseGraphGrammar
+from soffit.parse import ParseError
 import networkx as nx
 
 class TestGraphParsing(unittest.TestCase):
@@ -150,7 +151,7 @@ class TestGraphParsing(unittest.TestCase):
         self.assertTrue( n1 in nodeName.initCharsOrig )
         x = nodeName.parseString( n1 )
         print( x )
-        
+
     def test_unicode_chars( self ):
         n1 = "😖"
         n2 = "꼭지점"
@@ -162,14 +163,61 @@ class TestGraphParsing(unittest.TestCase):
         self.assertTrue( g.has_node( n3 ) )
         self.assertEqual( len( g.nodes ), 3 )        
         
-    def test_invalid_node_names( self ):
-        self.assertIsNone( parseGraphString( "123", quiet=True ) )
-        self.assertIsNone( parseGraphString( "\n--X", quiet=True ) )
-        self.assertIsNone( parseGraphString( "«", quiet=True ) )
-        self.assertIsNone( parseGraphString( "+", quiet=True ) )
-        self.assertIsNone( parseGraphString( "-", quiet=True ) )
-        self.assertIsNone( parseGraphString( "Y.Z", quiet=True ) )
+    def test_invalid_node_names( self ): 
+        with self.assertRaises( ParseError ):
+            self.assertIsNone( parseGraphString( "123" ) )
+        with self.assertRaises( ParseError ):
+            self.assertIsNone( parseGraphString( "\n--X" ) )
+        with self.assertRaises( ParseError ):
+            self.assertIsNone( parseGraphString( "«" ) )
+        with self.assertRaises( ParseError ):
+            self.assertIsNone( parseGraphString( "+" ) )
+        with self.assertRaises( ParseError ):
+            self.assertIsNone( parseGraphString( "-" ) )
+        with self.assertRaises( ParseError ):
+            self.assertIsNone( parseGraphString( "Y.Z" ) )
 
+    def test_merged_nodes( self ):
+        a = nodeName.parseString( "A" )
+        self.assertIsNotNone( a )
+        self.assertIn( "join", a )
+        self.assertEqual( len( a['join'] ), 0 )
+
+        b = nodeName.parseString( "B^C^D" )
+        self.assertIsNotNone( b )
+        self.assertIn( "join", b )
+        self.assertEqual( len( b['join'] ), 2 )
+
+    def test_merged_graphs( self ):
+        g = parseGraphString( "X^A--Y^B--Z^C", joinAllowed=True )
+        self.assertIsNotNone( g )
+        self.assertIn( "join", g.graph )
+        self.assertEqual( len( g.graph['join'] ), 3 )
+
+    def follow( self, union, x ):
+        while x in union:
+            x = union[x]
+        return x
+        
+    def test_merged_graphs_cyclic( self ):
+        g2 = parseGraphString( "P^Q; Q^R; R^S; S^P", joinAllowed=True )
+        self.assertIsNotNone( g2 )
+        self.assertIn( "join", g2.graph )
+        join = g2.graph['join']
+        # The "root" object is not included in the dictionary
+        self.assertEqual( len( join ), 3 )
+
+        self.assertEqual( self.follow( join, "P" ),
+                          self.follow( join, "Q" ) )
+        self.assertEqual( self.follow( join, "P" ),
+                          self.follow( join, "R" ) )
+        self.assertEqual( self.follow( join, "P" ),
+                          self.follow( join, "S" ) )                        
+
+    def test_merged_graphs_disallowed( self ):
+        with self.assertRaises( ParseError ):
+            parseGraphString( "X^A--Y^B--Z^C", joinAllowed=False )
+        
 v01a = """{
   "version" : "0.1",
   "start" : "A--B",
@@ -177,13 +225,76 @@ v01a = """{
   "A--B--C--D" : [ "A--B--C--D--A", "A--B; C--D;" ]
 }
 """
-        
+
 class TestGrammarParsing(unittest.TestCase):
+    showErrors = False
+    
     def test_v01_grammar(self):
         g = parseGraphGrammar( v01a )
         self.assertIsNotNone( g )
         self.assertIsNotNone( g.start )
         self.assertEqual( len( g.rules ), 2 )
+
+    def test_failed_start(self):
+        badGrammar = """
+        {
+        "start" : "A<=>B"
+        }
+        """
+
+        with self.assertRaises( ParseError ) as cm:
+            g = parseGraphGrammar( badGrammar )
+
+        x = cm.exception
+        if self.showErrors:
+            x.prettyPrint()
+        self.assertEqual( x.left, "start" )
+        self.assertEqual( x.right, "A<=>B" )
+        
+    def test_failed_lhs(self):
+        badGrammar2 = """{
+  "start" : "A--B",
+  "A--B^A" : "D--A--C"
+}
+"""
+
+        with self.assertRaises( ParseError ) as cm:
+            g = parseGraphGrammar( badGrammar2 )
+
+        x = cm.exception
+        if self.showErrors:
+            x.prettyPrint()
+        self.assertEqual( x.left, "A--B^A" )
+
+    def test_failed_rhs(self):
+        badGrammar3 = """{
+  "start" : "A--B",
+  "A--B--C; B--D--E; D--F--G" : "Q--R--S--T--U--X.Y"
+}
+"""
+
+        with self.assertRaises( ParseError ) as cm:
+            g = parseGraphGrammar( badGrammar3 )
+
+        x = cm.exception
+        if self.showErrors:
+            x.prettyPrint()
+        self.assertEqual( x.left, "A--B--C; B--D--E; D--F--G" )
+
+    
+    def test_failed_choice(self):
+        badGrammar4 = """{
+  "start" : "A--B",
+  "A--B" : [ "A--C--B", "C--A--B", "A--B--D; B--E", "A<->B" ]
+}
+"""
+        with self.assertRaises( ParseError ) as cm:
+            g = parseGraphGrammar( badGrammar4 )
+
+        x = cm.exception
+        if self.showErrors:
+            x.prettyPrint()
+        self.assertEqual( x.right, "A<->B" )
         
 if __name__ == '__main__':
     unittest.main()

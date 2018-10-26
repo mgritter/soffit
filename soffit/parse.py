@@ -19,9 +19,11 @@
 
 import json
 from pyparsing import Word, Literal, OneOrMore, Optional, Group, ParseException, StringEnd
+from pyparsing import ParseResults
 from pyparsing import delimitedList
 import networkx as nx
 from soffit.grammar import GraphGrammar
+from itertools import zip_longest
 
 # Copied from Swift,
 # see https://docs.swift.org/swift-book/ReferenceManual/LexicalStructure.html
@@ -68,19 +70,19 @@ def _buildUnicodeWord():
         inclusiveRange( 0xFE30,0xFE44 ),
         inclusiveRange( 0xFE47,0xFFFD ),
         inclusiveRange( 0x10000,0x1FFFD ),
-        inclusiveRange( 0x20000,0x2FFFD  ),
-        inclusiveRange( 0x30000,0x3FFFD ),
-        inclusiveRange( 0x40000,0x4FFFD ),
-        inclusiveRange( 0x50000,0x5FFFD ),
-        inclusiveRange( 0x60000,0x6FFFD ),
-        inclusiveRange( 0x70000,0x7FFFD ),
-        inclusiveRange( 0x80000,0x8FFFD ),
-        inclusiveRange( 0x90000,0x9FFFD ),
-        inclusiveRange( 0xA0000,0xAFFFD ),
-        inclusiveRange( 0xB0000,0xBFFFD ),
-        inclusiveRange( 0xC0000,0xCFFFD ),
-        inclusiveRange( 0xD0000,0xDFFFD ),
-        inclusiveRange( 0xE0000,0xEFFFD ),
+#        inclusiveRange( 0x20000,0x2FFFD  ),
+#        inclusiveRange( 0x30000,0x3FFFD ),
+#        inclusiveRange( 0x40000,0x4FFFD ),
+#        inclusiveRange( 0x50000,0x5FFFD ),
+#        inclusiveRange( 0x60000,0x6FFFD ),
+#        inclusiveRange( 0x70000,0x7FFFD ),
+#        inclusiveRange( 0x80000,0x8FFFD ),
+#        inclusiveRange( 0x90000,0x9FFFD ),
+#        inclusiveRange( 0xA0000,0xAFFFD ),
+#        inclusiveRange( 0xB0000,0xBFFFD ),
+#        inclusiveRange( 0xC0000,0xCFFFD ),
+#        inclusiveRange( 0xD0000,0xDFFFD ),
+#        inclusiveRange( 0xE0000,0xEFFFD ),
     ]
     
     _headChars = \
@@ -102,12 +104,25 @@ def _buildUnicodeWord():
 
     return Word( ''.join( _headChars ), ''.join( _identChars ) )( "vertex" )
 
-biEdge = Literal( "--" )( "direction" )
-unEdge = Literal( "->" )( "direction" )
-unEdgeReversed = Literal( "<-" )( "direction" )
+biEdge = Literal( "--" )
+unEdge = Literal( "->" )
+unEdgeReversed = Literal( "<-" )
 semicolon = Literal( ";" )
 
-nodeName = _buildUnicodeWord()
+# This ought to be "v" for a join, not ^ for a meet.
+# but, well, "v" isn't a special character, and "⋁" isn't on most keyboards.
+join = Literal( "^" )
+
+vertexId = _buildUnicodeWord()
+
+def createJoinDictionary( s, loc, toks ):
+    ret = ParseResults( toks[0] )
+    # FIXME: raise an error if the same id appears more than once?
+    # This just silently ignores the extra.
+    ret['join'] = { t : toks[0] for t in toks[1:] if t != toks[0] }
+    return ret
+    
+nodeName = delimitedList( vertexId, join ).setParseAction( createJoinDictionary )
 
 destination = Group(
     ( biEdge + nodeName ) | 
@@ -115,15 +130,117 @@ destination = Group(
     ( unEdgeReversed + nodeName )
 )
 
-graphElements = Group( nodeName( "start" ) + OneOrMore( destination ) ) | \
-                Group( nodeName( "solo" ) )
+def mergeJoin( s, loc, toks, flatten = False ):
+    union = {}
+    flat = []
+    # This only works if toks are all ParseObjects so we need to use
+    # Group( nodeName ) to avoid getting just a string and having the
+    # 'join' attribute lost.
+    # But that's annoying, so we will collapse the list.
+    for t in toks:
+        if isinstance( t, str ):
+            flat.append( t )
+        else:
+            flat.extend( t )
+            if 'join' in t:
+                for (k,v) in t['join'].items():
+                    # Follow to the root of the set
+                    # FIXME: replace with a real union-find?
+                    while k in union:
+                        k = union[k]
+                    while v in union:
+                        v = union[v]
+                    if k != v:
+                        union[k] = v
 
-graph = delimitedList( graphElements, semicolon ) + Optional( semicolon ).suppress() + StringEnd()
+    if flatten:
+        ret = ParseResults( flat )
+        ret['join'] = union 
+        return ret
+    else:
+        toks['join'] = union
 
+def mergeJoinFlatten( s, loc, toks ):
+    return mergeJoin( s, loc, toks, flatten=True )
+        
+edges = ( Group( nodeName ) + OneOrMore( destination ) ).setParseAction( mergeJoinFlatten )
+
+vertexOnly = nodeName
+
+graphElement = Group( edges | vertexOnly )
+
+graph = delimitedList( graphElement, semicolon ).setParseAction( mergeJoin ) + \
+        Optional( semicolon ).suppress() + StringEnd()
+
+class ParseError(Exception):
+    pass
+
+    def prettyPrint( self ):
+        print( "Unknown parser error." )
+
+class MergeDisallowedError(ParseError):
+    """A graph specified merged nodes in a situation where that was not permitted."""
+    def __init__( self, graph ):
+        self.graph = graph
+
+    def prettyPrint( self ):
+        print( "Graph has merged nodes." )
+    
+class GraphParsingError(ParseError):
+    """An error while parsing a graph."""
+    def __init__( self, graph, parseError ):
+        self.graph = graph
+        self.parseError = parseError
+
+    def prettyPrint( self ):
+        print( "Error parsing graph: " + str( self.parseError ) )
+        column = self.parseError.column
+        # FIXME: for characters not equal-with, it would be better to split the line
+        # FIXME: handle big columns by truncating?
+        print( self.graph )
+        text = "column {}".format( column ) 
+        if column > len( text ) + 5:
+            print( " " * (column-2-len(text)) + text + " ^" )
+        else:
+            print( " " * (column-1) + "^ " + text )
+
+class GrammarParsingError(ParseError):
+    """An error while parsing a rule."""
+    def __init__( self, left, right, message, graphError = None, lineNumber = None ):
+        self.left = left
+        self.right = right
+        self.message = message
+        self.graphError = graphError
+        self.lineNumber = None
+
+    def updateLineNumber( self, inputText ):
+        # This is a gross hack to try to find the rule in the
+        # original JSON.
+        try:
+            startPos = 0
+            index = inputText.index( '"' + self.left + '"', startPos )
+            # FIXME: check that it's not on the right-hand side, probably
+            # need to use an RE to get it right?
+            self.lineNumber = 1 + inputText.count( "\n", 0, index )   
+        except ValueError:
+            pass
+
+    def prettyPrint( self ):
+        print()
+        print( "Error parsing graph grammar: " + self.message )
+        if self.lineNumber is not None:
+            print( "  on line number", self.lineNumber )
+        if self.graphError is not None:
+            print( "  caused by:" )
+            self.graphError.prettyPrint()
+        else:
+            print( '  Rule "' + self.left + '" : "' + self.right + '"' )
+                   
 class WorkingGraph(object):
-    def __init__( self ):
+    def __init__( self, join = {} ):
         # Start with an undirected graph, convert if necessary
-        self.graph = nx.Graph()
+        # Annotate with merged nodes dictionary.
+        self.graph = nx.Graph( join = join )
         self.undirected = True
 
     def addNode( self, n ):
@@ -142,42 +259,40 @@ class WorkingGraph(object):
         else:
             self.graph.add_edge( a, b )
             self.graph.add_edge( b, a )
-        
-def parseGraphString( inputString, quiet=False ):
+
+# From python 3 itertools recipes
+def grouper(iterable, n, fillvalue=None):
+    "Collect data into fixed-length chunks or blocks"
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
+
+def parseGraphString( inputString, quiet=False, joinAllowed=False ):
     try:
         p = graph.parseString( inputString )
     except ParseException as err:
-        # FIXME: handle big columns
-        # FIXME: figure out how I want to report errors
-        if not quiet:
-            print( "Error parsing graph:" )
-            print( inputString[0:err.column-1] )
-            print( " " * (err.column-1) + inputString[err.column-1:] )
-            print( " " * (err.column-1) + "^" )
-            print( err )
-        return None
+        raise GraphParsingError( inputString, err )
 
-    ret = WorkingGraph()
+    if ( joinAllowed is False ) and ( len( p['join']  ) > 0 ):
+        raise MergeDisallowedError( p )
+        
+    ret = WorkingGraph( join=p['join'] )
     
     for element in p:
-        if 'solo' in element:
-            ret.addNode( element['solo'] )
-        elif 'start' in element:
-            prev = element['start']
-            for edge in element[1:]:
-                if edge['direction'] == "--":
-                    ret.addUndirected( prev, edge['vertex' ] )
-                elif edge['direction'] == "->":
-                    ret.addDirected( prev, edge['vertex'] )
-                elif edge['direction'] == "<-":
-                    ret.addDirected( edge['vertex'], prev )
-                else:
-                    print( "Unknown direction", edge['direction'] )
-                    return None
-                prev = edge['vertex']                        
+        if len( element ) == 1:
+            ret.addNode( element[0] )
         else:
-            print( "Unknown element", element )
-            return None
+            prev = element[0]
+            for (direction, vertex) in grouper( element[1:], 2 ):
+                if direction == "--":
+                    ret.addUndirected( prev, vertex )
+                elif direction == "->":
+                    ret.addDirected( prev, vertex )
+                elif direction == "<-":
+                    ret.addDirected( vertex, prev )
+                else:
+                    assert False, "Invalid direction slipped through parser"
+                prev = vertex
 
     return ret.graph
             
@@ -190,32 +305,36 @@ def _parseGraphGrammar_v01( obj, quiet = False ):
         elif l == "version":
             pass
         elif l == "start":
-            gg.start = parseGraphString( r )
-            if gg.start == None:
-                print( "Error parsing start position." )
-                return None
+            try:
+                gg.start = parseGraphString( r, joinAllowed=False )
+            except GraphParsingError as gpe:
+                raise GrammarParsingError( l, r, "bad start graph", gpe )
+            except MergeDisallowedError as mde:
+                raise GrammarParsingError( l, r, "merge syntax not allowed in starting rule" )
         else:
-            lg = parseGraphString( l )
-            if lg == None:
-                print( "Error parsing left-hand graph ", repr(lg) )
-                return None
+            try:
+                lg = parseGraphString( l, joinAllowed=False )
+            except GraphParsingError as gpe:
+                raise GrammarParsingError( l, r, "bad left-hand graph", gpe )
+            except MergeDisallowedError as mde:
+                raise GrammarParsingError( l, r, "merge syntax not allowed in left side of rule" )
             
             if isinstance( r, list ):
                 rgList = []
                 for i in r:
-                    rg = parseGraphString( i )
-                    if rg == None:
-                        print( "Error parsing right-hand graph ", repr(rg) )
-                        return None
-                    rgList.append( rg )
+                    try:
+                        rg = parseGraphString( i, joinAllowed=True )
+                        rgList.append( rg )
+                    except GraphParsingError as gpe:
+                        raise GrammarParsingError( l, i, "bad right-hand graph in choice", gpe )                        
                 gg.addChoice( lg, rgList )
             else:
-                rg = parseGraphString( r )
-                if rg == None:
-                    print( "Error parsing right-hand graph ", repr(rg) )
-                    return None
-                gg.addRule( lg, rg )
-        
+                try:
+                    rg = parseGraphString( r, joinAllowed=True )
+                    gg.addRule( lg, rg )
+                except GraphParsingError as gpe:
+                    raise GrammarParsingError( l, r, "bad right-hand graph", gpe )                        
+
     return gg                
 
 
@@ -230,8 +349,12 @@ def _dispatchGrammarParse( ggJson, quiet = False ):
 def parseGraphGrammar( inputString, quiet=False ):
     # FIXME: handle parse error
     ggJson = json.loads( inputString )
-    return _dispatchGrammarParse( ggJson )
-
+    try:
+        return _dispatchGrammarParse( ggJson )
+    except GrammarParsingError as pe:
+        pe.updateLineNumber( inputString )
+        raise pe
+        
 def loadGraphGrammar( f, quiet=False ):
     # FIXME: handle parse error
     ggJson = json.load( f )

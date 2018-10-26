@@ -103,6 +103,23 @@ tags will be provided in the output; a postprocessing stage in an output
 formatter may provide additional conventions on tags, such as suppressing
 non-formatting tags.
 
+### Merged nodes
+
+A non-injective rule may merge nodes.  That is, nodes on the right hand side of a rule
+correspond to more than one node from the left hand.  This is indicated by using ^ to combine
+node identifiers in the graph on a right-hand side of a rule.  A merge need only be indicated once
+on the right side.  Node merges are transitive, so if A is merged with B, and B is merged with C,
+then A is merged with C as well.
+
+Example: `"A; B; C" : "A^B^C"'
+
+Example: `"A--B--C" : "A^C--B"'
+
+Example: `"A--B--C" : "A^C--B^C"' creates a single node with a single self-loop
+
+Example: `"A--B--C" : "A^B--A--C"' and `"A--B--C" : "A^B--A^B--C"' and `"A--B--C" : "A--B--C; A^B"' are all equivalent. 
+
+
 ## Versioning
 
 The rule format may change, with no guarantee of backward-compatibility in

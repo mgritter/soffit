@@ -19,14 +19,31 @@
 
 import networkx as nx
 import matplotlib.pyplot as plt
-from soffit.parse import parseGraphString
+from soffit.parse import parseGraphString, ParseError
 
-def drawGraphString( text ):
-    g = parseGraphString( text )
-    nx.drawing.nx_pylab.draw_networkx( g )
+def drawGraphSimple( g ):
+    pos = nx.spring_layout( g )    
+
+    nx.draw_networkx_nodes( g, pos, node_size=500 )
+    nx.draw_networkx_labels( g, pos )
+    
+    offset_right = { n : (x + 0.1, y) for ( n, (x,y) ) in pos.items() }
+    node_tags = { n : "[{}]".format( g.nodes[n]['tag'] ) for n in g.nodes if 'tag' in g.nodes[n] }
+    nx.draw_networkx_labels( g, offset_right, labels = node_tags )
+    
+    nx.draw_networkx_edges( g, pos, edge_labels = {} )
+    edge_tags = { e : g.edges[e]['tag'] for e in g.edges if 'tag' in g.edges[e] }
+    nx.draw_networkx_edge_labels( g, pos, edge_labels = edge_tags )
+
     plt.savefig( "/u/mgritter/public_html/test.png" )
 
 if __name__ == "__main__":
     import sys
-    drawGraphString( sys.argv[1] )
-    
+    try:
+        g = parseGraphString( sys.argv[1], joinAllowed=True )
+    except ParseError as pe:
+        pe.prettyPrint()
+        exit( 1)
+        
+    drawGraphSimple( g )
+        

@@ -199,14 +199,27 @@ class MergeDisallowedError(ParseError):
         print( "Graph has merged nodes." )
 
 class MismatchedTagError(ParseError):
-    """A node identifier appeared with inconsistent tags attached."""
-    def __init__( self, node, newTag, oldTag ):
-        self.node = node
+    """A vertex or node appeared with inconsistent tags attached."""
+    pass
+
+class MismatchedVertexError(MismatchedTagError):
+    def __init__( self, node, newTag, oldTag ):        
+        self.node = node 
         self.newTag = newTag
         self.oldTag = oldTag
 
     def prettyPrint( self ):
         print( "Vertex ID '{}' was given tag '{}' when it already had tag '{}'".format( self.node, self.newTag, self.oldTag ) )
+
+class MismatchedEdgeError(MismatchedTagError):
+    def __init__( self, src, dst, newTag, oldTag ):        
+        self.src = src;
+        self.dest = dst;
+        self.newTag = newTag
+        self.oldTag = oldTag
+
+    def prettyPrint( self ):
+        print( "Edge '{}->{}' was given tag '{}' when it already had tag '{}'".format( self.src, self.dst, self.newTag, self.oldTag ) )
 
 class GraphParsingError(ParseError):
     """An error while parsing a graph."""
@@ -265,6 +278,12 @@ class WorkingGraph(object):
         self.graph = nx.Graph( join = join )
         self.undirected = True
 
+    def _checkEdge( self, a, b, tag ):
+        if [a,b] in self.graph.edges:
+            if 'tag' in self.graph[a][b]:
+                if self.graph[a][b]['tag'] != tag:
+                    raise MismatchedEdgeError( a, b, tag, self.graph[a][b]['tag'] )
+            
     def addNode( self, n, tag = None ):        
         if tag is None:
             self.graph.add_node( n )
@@ -274,7 +293,7 @@ class WorkingGraph(object):
             else:
                 existing = self.graph.nodes[n]
                 if 'tag' in existing and existing['tag'] != tag:
-                    raise MismatchedTagError( n, tag, existing['tag'] )
+                    raise MismatchedVertexError( n, tag, existing['tag'] )
             
     def addDirected( self, a, b, tag = None ):
         if self.undirected:
@@ -284,6 +303,7 @@ class WorkingGraph(object):
         if tag is None:
             self.graph.add_edge( a, b )
         else:
+            self._checkEdge( a, b, tag ) 
             self.graph.add_edge( a, b, tag=tag )
 
     def addUndirected( self, a, b, tag = None ):
@@ -291,12 +311,15 @@ class WorkingGraph(object):
             if tag is None:
                 self.graph.add_edge( a, b )
             else:
+                self._checkEdge( a, b, tag )
                 self.graph.add_edge( a, b, tag=tag )
         else:
             if tag is None:
                 self.graph.add_edge( a, b )
                 self.graph.add_edge( b, a )
             else:
+                self._checkEdge( a, b, tag )
+                self._checkEdge( b, a, tag )
                 self.graph.add_edge( a, b, tag=tag )
                 self.graph.add_edge( b, a, tag=tag )
                 

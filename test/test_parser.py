@@ -280,7 +280,7 @@ class TestGraphParsing(unittest.TestCase):
 
     def test_redefine_edge( self ):        
         with self.assertRaises( ParseError ):
-            parseGraphString( "P -- Q[x]; Q -- P[x];" )
+            parseGraphString( "P -- Q[x]; Q -- P[y];" )
 
         with self.assertRaises( ParseError ):
             parseGraphString( "P -- Q[x]; A -> B -> C[y]; B -> P -> Q[z];" )

@@ -292,8 +292,12 @@ class WorkingGraph(object):
                 self.graph.add_node( n, tag = tag )
             else:
                 existing = self.graph.nodes[n]
-                if 'tag' in existing and existing['tag'] != tag:
-                    raise MismatchedVertexError( n, tag, existing['tag'] )
+                if 'tag' in existing:
+                    if existing['tag'] != tag:
+                        raise MismatchedVertexError( n, tag, existing['tag'] )
+                else:
+                    # Add it to a previously untagged node
+                    self.graph.nodes[n]['tag'] = tag
             
     def addDirected( self, a, b, tag = None ):
         if self.undirected:

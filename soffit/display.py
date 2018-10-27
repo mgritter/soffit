@@ -29,13 +29,14 @@ def drawGraphSimple( g ):
     
     offset_right = { n : (x + 0.1, y) for ( n, (x,y) ) in pos.items() }
     node_tags = { n : "[{}]".format( g.nodes[n]['tag'] ) for n in g.nodes if 'tag' in g.nodes[n] }
+    print( node_tags )
     nx.draw_networkx_labels( g, offset_right, labels = node_tags )
     
     nx.draw_networkx_edges( g, pos, edge_labels = {} )
     edge_tags = { e : g.edges[e]['tag'] for e in g.edges if 'tag' in g.edges[e] }
     nx.draw_networkx_edge_labels( g, pos, edge_labels = edge_tags )
 
-    plt.savefig( "/u/mgritter/public_html/test.png" )
+    plt.savefig( "test.png" )
 
 if __name__ == "__main__":
     import sys

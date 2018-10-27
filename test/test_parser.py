@@ -285,6 +285,12 @@ class TestGraphParsing(unittest.TestCase):
         with self.assertRaises( ParseError ):
             parseGraphString( "P -- Q[x]; A -> B -> C[y]; B -> P -> Q[z];" )
 
+    def test_tag_node_after_first_use( self ):
+        g = parseGraphString( "P -- Q [x]; P[1]; Q[2]" )
+        self.assertEqual( g.nodes['P']['tag'], '1' )
+        self.assertEqual( g.nodes['Q']['tag'], '2' )
+        self.assertEqual( g['P']['Q']['tag'], 'x' )
+        
 v01a = """{
   "version" : "0.1",
   "start" : "A--B",

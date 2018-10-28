@@ -18,6 +18,7 @@
 #
 
 import unittest
+from unittest import skip
 import networkx as nx
 import soffit.graph as sg
 
@@ -132,7 +133,7 @@ class TestMatchFinding(unittest.TestCase):
         foundEdges = set( m.edge( ( 'X', 'Y' ) ) for m in mList )
         self.assertEqual( edges, foundEdges )
 
-    def test_complicated_directed_match( self ):
+    def test_complicated_directed_single_path( self ):
         g = nx.DiGraph()
         g.add_edge( 'A', 'B', tag='1' )
         g.add_edge( 'A', 'C', tag='2' )
@@ -160,6 +161,79 @@ class TestMatchFinding(unittest.TestCase):
         self.assertFalse( finder.impossible )
         mList = finder.matches()
         self.assertEqual( len( mList ), 1 )
+
+
+    def multiPath( self, srcs, inter ):
+        g = nx.Graph()
+        for s in srcs:
+            g.add_node( s, tag="src" )
+
+        g.add_node( "DST", tag="dst" )
+
+        for i in inter:
+            g.add_node( i )
+            for s in srcs:
+                g.add_edge( s, i )
+            g.add_edge( i, "DST" )
+
+        return g
+        
+    def test_multiple_paths( self ):
+        srcs = [ "S1", "S2", "S3" ]
+        inter = [ "A", "B" ]
+        g = self.multiPath( srcs, inter )
+        
+        lhs = nx.Graph()
+        lhs.add_node( "X", tag="src" )
+        lhs.add_node( "Y" )        
+        lhs.add_node( "Z", tag="dst" )
+        lhs.add_edge( "X", "Y" )
+            
+        finder = sg.MatchFinder( g, verbose=testVerbose )
+        finder.leftSide( lhs )
+        mList = finder.matches()
+        self.assertEqual( len( mList ), len( srcs ) * len( inter ) ) 
+        for m in mList:
+            if testVerbose:
+                print( m )
+            self.assertIn( m.node( "X" ), srcs )
+            self.assertIn( m.node( "Y"),  inter )
+            self.assertEqual( m.node( "Z" ), "DST" )
+
+    @skip( "Crashes or-tools, see https://github.com/google/or-tools/issues/907" )
+    def test_multiple_paths_fail( self ):
+        srcs = [ "S1", "S2", "S3" ]
+        inter = [ "A", "B" ]
+        g = self.multiPath( srcs, inter )
+
+        lhs2 = nx.Graph()
+        lhs2.add_node( "X", tag="src" )
+        lhs2.add_node( "Z", tag="dst" )
+        lhs2.add_edge( "X", "Z" )
+
+        finder = sg.MatchFinder( g, verbose=testVerbose )
+        finder.leftSide( lhs2 )
+
+        print( finder.model.ModelProto() )
+        
+        mList = finder.matches()
+        self.assertEqual( len( mList ), 0 )
+
+    def test_match_dedup( self ):
+        a = sg.Match()
+        a.addMap( 'X', 'A' )
+        a.addMap( 'Y', 'B' )
+        a.addMap( 'Z', 'B' )
+        
+        b = sg.Match()
+        b.addMap( 'Z', 'B' )
+        b.addMap( 'X', 'A' )
+        b.addMap( 'Y', 'B' )
+
+        self.assertEqual( a, b )
+        self.assertEqual( hash(a), hash(b) )
+        with self.assertRaises( sg.MatchError ):
+            b.addMap( "BAD", "NEWS" )
         
     def test_directed_vs_undirected_error( self ):
         g = nx.Graph()

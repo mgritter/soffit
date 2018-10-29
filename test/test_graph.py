@@ -45,6 +45,79 @@ class TestGraphModification(unittest.TestCase):
         self.assertIn( 'x', edgeTags )
         self.assertIn( 'y', edgeTags )
 
+    def _buildRename( self, g ):
+        join = g.graph['join']
+        rename = {}
+        for n in g.nodes:
+            rename[n] = n
+        for k in join:
+            orig = k
+            while k in join:
+                k = join[k]
+            rename[orig] = k
+        g.graph['rename'] = rename
+        
+    def test_deleted_nodes( self ):
+        l = nx.Graph()
+        l.add_node( 'A', tag='x' )
+        l.add_node( 'B', tag='y' )
+        l.add_node( 'C', tag='z' )
+        l.add_node( 'D' )
+        l.add_node( 'E' )
+
+        # B merged to A
+        # C, E deleted
+        r = nx.Graph()
+        r.graph['join'] = { 'B' : 'A' }
+        r.add_node( 'A', tag='x' )
+        r.add_node( 'D' )
+        self._buildRename( r )
+
+        rh = sg.RightHandGraph( r )
+        (dn, de) = rh.ruleDeletions( l )
+        if testVerbose:
+            print( "Deleted nodes:", dn )
+            print( "Deleted edgess:", de )
+            
+        self.assertEqual( len( dn ), 2 )
+        self.assertEqual( len( de ), 0 )
+        self.assertIn( 'C', dn )
+        self.assertIn( 'E', dn )
+        self.assertNotIn( 'B', dn )
+        
+    def test_deleted_edges( self ):
+        l = nx.Graph()
+        l.add_edge( 'A', 'B', tag='1' )
+        l.add_edge( 'B', 'C', tag='2' )
+        l.add_edge( 'C', 'D', tag='3' )
+        l.add_edge( 'B', 'E', tag='4' )
+        l.add_edge( 'B', 'F', tag='5' )
+        
+        r = nx.Graph()
+        # C and A got merged, so did the edges A-B and B-C
+        # C-D got deleted but D did not
+        # B-E got deleted along with E
+        # B-F is not deleted
+        r.graph['join'] = { 'C' : 'A' }        
+        r.add_edge( 'A', 'B', tag='1' )
+        r.add_node( 'D' )
+        r.add_edge( 'B', 'F', tag='5' )
+        self._buildRename( r )
+        
+        rh = sg.RightHandGraph( r )
+        (dn, de) = rh.ruleDeletions( l )
+        if testVerbose:
+            print( "Deleted nodes:", dn )
+            print( "Deleted edgess:", de )
+        self.assertEqual( len( dn ), 1 )
+        self.assertEqual( len( de ), 2 )
+        self.assertIn( 'E', dn )
+        # Crud, edges can appear in either order...
+        self.assertTrue( ('C','D') in de  or ('D','C') in de )
+        self.assertTrue( ('B','E') in de  or ('E','B') in de )
+        self.assertNotIn( ('B','F'), de )
+        self.assertNotIn( ('F','B'), de )
+        
 class TestMatchFinding(unittest.TestCase):
     def twoEdgesX(self):
         g = nx.Graph()

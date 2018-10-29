@@ -31,6 +31,32 @@ def graphIdentifiersToNumbers( g ):
     ret.graph['nextId'] = nextId
     return ret
 
+class RightHandGraph(object):
+    def __init__( self, right  ):
+        self.right = right
+        self.join = right.graph['join']
+        self.rename = right.graph['rename']
+        
+    def ruleDeletions( self, left ):
+        """Return nodes and edges deleted by this left-right pair.
+        Returned as a tuple (nodes, edges)."""
+
+        # Rename contains all nodes on the right, merged or not, so
+        # any node *not* present is deleted.
+        dn = [ n for n in left.nodes if
+               n not in self.rename ]
+
+        de = [ e for e in left.edges if
+               ( self._joinedVersionOfEdge( e ) not in self.right.edges ) ]
+
+        return (dn, de)
+
+    def _joinedVersionOfEdge( self, e ):
+        (a,b) = e
+        # Edges may be to a node which is deleted.
+        return ( self.rename.get( a, None ),
+                 self.rename.get( b, None ) )
+
 class MatchError(Exception):
     def __init__( self, message ):
         self.message = message
@@ -120,11 +146,14 @@ class MatchFinder(object):
         is not also being deleted can be matched to node B.
         """
 
+        self.checkCompatible( rightGraph )
+        self.right = rightGraph
+        
         # Bail out early if we already decided no match is present.
         if self.impossible:
             return
-        
-        pass
+
+        (dn, de) = ruleDeletions( self.left, rightGraph )
     
     def matches( self ):
         if self.impossible:

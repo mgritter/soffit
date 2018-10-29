@@ -206,6 +206,7 @@ class TestGraphParsing(unittest.TestCase):
         join = g2.graph['join']
         # The "root" object is not included in the dictionary
         self.assertEqual( len( join ), 3 )
+        self.assertEqual( len( g2.nodes), 1 )
 
         self.assertEqual( self.follow( join, "P" ),
                           self.follow( join, "Q" ) )
@@ -213,7 +214,14 @@ class TestGraphParsing(unittest.TestCase):
                           self.follow( join, "R" ) )
         self.assertEqual( self.follow( join, "P" ),
                           self.follow( join, "S" ) )                        
-
+        
+        rename = g2.graph['rename']
+        n0 = list( g2.nodes )[0]
+        self.assertEqual( rename['P'], n0 )
+        self.assertEqual( rename['Q'], n0 )
+        self.assertEqual( rename['R'], n0 )
+        self.assertEqual( rename['S'], n0 )
+        
     def test_merged_graphs_disallowed( self ):
         with self.assertRaises( ParseError ):
             parseGraphString( "X^A--Y^B--Z^C", joinAllowed=False )
@@ -290,7 +298,47 @@ class TestGraphParsing(unittest.TestCase):
         self.assertEqual( g.nodes['P']['tag'], '1' )
         self.assertEqual( g.nodes['Q']['tag'], '2' )
         self.assertEqual( g['P']['Q']['tag'], 'x' )
+
+    def test_tag_merged_node( self ):
+        g = parseGraphString( "A[x]; A^C--B^D; D[y]", joinAllowed=True )
+        self.assertEqual( len( g.nodes ), 2 )
+        # FIXME: fragile?
+        self.assertIn( 'A', g.nodes )
+        self.assertIn( 'B', g.nodes )
+        self.assertEqual( g.nodes['A']['tag'], 'x' )
+        self.assertEqual( g.nodes['B']['tag'], 'y' )
+
+    def test_merge_same_node( self ):
+        g = parseGraphString( "A -- B [x]; A^B", joinAllowed=True )
+        self.assertEqual( len( g.nodes ), 1 )
+        n0 = list( g.nodes )[0]
+        self.assertIn( (n0,n0), g.edges )
+        self.assertEqual( g[n0][n0]['tag'], 'x' )
+
+    def test_tag_many_merged_nodes( self ):
+        g = parseGraphString( "A^B; B^C; C^D[y]; E^F; F^C; G^B; G[y]",
+                              joinAllowed=True )
+        self.assertEqual( len( g.nodes ), 1 )
+        n0 = list( g.nodes )[0]
+        self.assertEqual( g.nodes[n0]['tag'], 'y' )
+        self.assertEqual( g.graph['rename']['A'], n0 )
+        self.assertEqual( g.graph['rename']['B'], n0 )
+        self.assertEqual( g.graph['rename']['C'], n0 )
+        self.assertEqual( g.graph['rename']['D'], n0 )
+        self.assertEqual( g.graph['rename']['E'], n0 )
+        self.assertEqual( g.graph['rename']['F'], n0 )
+        self.assertEqual( g.graph['rename']['G'], n0 )
         
+    def test_merge_unequal_tgs( self ):        
+        with self.assertRaises( ParseError ):
+            parseGraphString( "A[x]; B[y]; B^A -- C" )
+
+        with self.assertRaises( ParseError ):
+            parseGraphString( "A[x]; B^A; B[y];" )
+
+        with self.assertRaises( ParseError ):
+            parseGraphString( "A[x]; A^C; B^C[y]" )
+
 v01a = """{
   "version" : "0.1",
   "start" : "A--B",

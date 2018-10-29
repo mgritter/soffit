@@ -275,16 +275,47 @@ class WorkingGraph(object):
     def __init__( self, join = {} ):
         # Start with an undirected graph, convert if necessary
         # Annotate with merged nodes dictionary.
-        self.graph = nx.Graph( join = join )
+        # Ths dictionary should be used to canonicalize the graph so
+        # merged nodes appear only once, and all tags can be checked
+        # here rather than in a later step.
+
+        self.join = join
+        self.rename = {}
+
+        # Make sure all nodes are correctly entered
+        for (a,_) in self.join.items():
+            self._followJoin( a )
+        
+        self.graph = nx.Graph( join = join, rename = self.rename )
         self.undirected = True
 
+    def _followJoin( self, n ):
+        if n in self.rename:
+            return self.rename[n]
+
+        path = [ n ]
+        while n in self.join:
+            n = self.join[n]
+            # Did we meet an already-visited node?
+            if n in self.rename:
+                n = self.rename[n]
+                break
+            # No, but direct this intermediate node to the end too.
+            path.append( n )
+
+        for i in path:
+            self.rename[i] = n
+        return n
+            
     def _checkEdge( self, a, b, tag ):
         if [a,b] in self.graph.edges:
             if 'tag' in self.graph[a][b]:
                 if self.graph[a][b]['tag'] != tag:
                     raise MismatchedEdgeError( a, b, tag, self.graph[a][b]['tag'] )
-            
-    def addNode( self, n, tag = None ):        
+    
+    def addNode( self, n, tag = None ):
+        n = self._followJoin( n )
+        
         if tag is None:
             self.graph.add_node( n )
         else:
@@ -300,6 +331,9 @@ class WorkingGraph(object):
                     self.graph.nodes[n]['tag'] = tag
             
     def addDirected( self, a, b, tag = None ):
+        a = self._followJoin( a )
+        b = self._followJoin( b )
+        
         if self.undirected:
             self.undirected = False
             self.graph = self.graph.to_directed()
@@ -311,6 +345,9 @@ class WorkingGraph(object):
             self.graph.add_edge( a, b, tag=tag )
 
     def addUndirected( self, a, b, tag = None ):
+        a = self._followJoin( a )
+        b = self._followJoin( b )
+
         if self.undirected:
             if tag is None:
                 self.graph.add_edge( a, b )

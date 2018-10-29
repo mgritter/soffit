@@ -147,7 +147,7 @@ class MatchFinder(object):
         """
 
         self.checkCompatible( rightGraph )
-        self.right = rightGraph
+        self.right = RightHandGraph( rightGraph )
         
         # Bail out early if we already decided no match is present.
         if self.impossible:
@@ -164,7 +164,12 @@ class MatchFinder(object):
         # print( self.model.ModelProto() )
 
         start = time.time()
-        status = solver.SearchForAllSolutions( self.model, callback )
+        # Work around issue https://github.com/google/or-tools/issues/907
+        # SearchForAllSolutions seems to crash on an unsatisfiable model,
+        # but Search does not.  So use that first?
+        status = solver.Solve( self.model )
+        if status != cp_model.INFEASIBLE:
+            status = solver.SearchForAllSolutions( self.model, callback )
         end = time.time()
 
         # print( solver.ResponseStats() )

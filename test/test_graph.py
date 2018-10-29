@@ -273,7 +273,6 @@ class TestMatchFinding(unittest.TestCase):
             self.assertIn( m.node( "Y"),  inter )
             self.assertEqual( m.node( "Z" ), "DST" )
 
-    @skip( "Crashes or-tools, see https://github.com/google/or-tools/issues/907" )
     def test_multiple_paths_fail( self ):
         srcs = [ "S1", "S2", "S3" ]
         inter = [ "A", "B" ]
@@ -287,8 +286,6 @@ class TestMatchFinding(unittest.TestCase):
         finder = sg.MatchFinder( g, verbose=testVerbose )
         finder.leftSide( lhs2 )
 
-        print( finder.model.ModelProto() )
-        
         mList = finder.matches()
         self.assertEqual( len( mList ), 0 )
 

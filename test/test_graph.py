@@ -21,6 +21,7 @@ import unittest
 from unittest import skip
 import networkx as nx
 import soffit.graph as sg
+from soffit.parse import parseGraphString
 
 import sys
 
@@ -45,7 +46,7 @@ class TestGraphModification(unittest.TestCase):
         self.assertIn( 'x', edgeTags )
         self.assertIn( 'y', edgeTags )
 
-    def _buildRename( self, g ):
+    def _buildRename( self, g ):        
         join = g.graph['join']
         rename = {}
         for n in g.nodes:
@@ -117,6 +118,55 @@ class TestGraphModification(unittest.TestCase):
         self.assertTrue( ('B','E') in de  or ('E','B') in de )
         self.assertNotIn( ('B','F'), de )
         self.assertNotIn( ('F','B'), de )
+
+    def test_deleted_self_edges( self ):
+        l = nx.Graph()
+        l.add_edge( 'A', 'A', tag='1' )
+        l.add_edge( 'B', 'C', tag='2' )
+
+        r = nx.Graph( join={} )
+        r.add_node( 'A' )
+        r.add_edge( 'B', 'C', tag='2' )
+        self._buildRename( r )
+
+        rh = sg.RightHandGraph( r )
+        (dn, de) = rh.ruleDeletions( l )
+        self.assertEqual( len(dn), 0 )
+        self.assertIn( ('A','A'), de )
+        self.assertEqual( len(de), 1 )
+
+class TestSurjectiveMappings(unittest.TestCase):
+    def test_simple( self ):
+        foo = list( sg.surjectiveMappings( 1, ['a'] ) )
+        self.assertIn( ('a',), foo )
+        self.assertEqual( len( foo ), 1 )
+
+    def test_empty( self ):        
+        mt = list( sg.surjectiveMappings( 1, ['a', 'b'] ) )
+        self.assertEqual( len( mt ), 0 )
+
+        mt2 = list( sg.surjectiveMappings( 3, ['a', 'b', 'c', 'd'] ) )
+        self.assertEqual( len( mt2 ), 0 )
+
+    def test_permutation( self ):
+        foo = list( sg.surjectiveMappings( 3, ['a', 'b', 'c'] ) )
+        self.assertIn( ('a', 'b', 'c'), foo )
+        self.assertIn( ('a', 'c', 'b'), foo )
+        self.assertIn( ('b', 'a', 'c'), foo )
+        self.assertIn( ('b', 'c', 'a'), foo )
+        self.assertIn( ('c', 'a', 'b'), foo )
+        self.assertIn( ('c', 'b', 'a'), foo )
+        self.assertEqual( len( foo ), 6 )
+
+    def test_permutation_plus_one( self ):
+        foo = list( sg.surjectiveMappings( 3, ['a', 'b'] ) )
+        self.assertIn( ('a', 'b', 'a'), foo )
+        self.assertIn( ('a', 'b', 'b'), foo )
+        self.assertIn( ('a', 'a', 'b'), foo )
+        self.assertIn( ('b', 'a', 'a'), foo )
+        self.assertIn( ('b', 'a', 'b'), foo )
+        self.assertIn( ('b', 'b', 'a'), foo )
+        self.assertEqual( len( foo ), 6 )
         
 class TestMatchFinding(unittest.TestCase):
     def twoEdgesX(self):
@@ -310,7 +360,7 @@ class TestMatchFinding(unittest.TestCase):
         g.add_edge( 'A', 'B' )
 
         lhs = nx.DiGraph()
-        g.add_edge( 'X', 'Y' )
+        lhs.add_edge( 'X', 'Y' )
 
         finder = sg.MatchFinder( g, verbose=testVerbose )
         with self.assertRaises( sg.MatchError ) as me:
@@ -318,6 +368,23 @@ class TestMatchFinding(unittest.TestCase):
 
         if testVerbose:
             print( me.exception )
+
+    def test_right_dangling_nodes( self ):
+        l = parseGraphString( "A--B; A--C" )
+        self.assertFalse( nx.is_directed( l ) )
+        r = parseGraphString( "B; C" )
+        self.assertFalse( nx.is_directed( r ) )
+        g = parseGraphString( "w--x; w--y; w--z; z--s" )
+        self.assertFalse( nx.is_directed( g ) )
+
+        finder = sg.MatchFinder( g, verbose=testVerbose )
+        finder.leftSide( l )
+        finder.rightSide( r )
+        mList = finder.matches()
+
+        print( mList )
+        
+        
         
 if __name__ == '__main__':
     unittest.main()

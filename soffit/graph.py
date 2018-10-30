@@ -19,7 +19,9 @@
 
 import networkx as nx
 from ortools.sat.python import cp_model
+import itertools
 import time
+from soffit import hacks
 
 def graphIdentifiersToNumbers( g ):
     """Replace the graph identified by strings, with one where all nodes
@@ -71,6 +73,7 @@ class MatchFinder(object):
         
         # Relabel for compactness, nodes numbered 0..(n-1)
         self.graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )
+
         self.model = cp_model.CpModel()
         self.variables = {}
         
@@ -145,7 +148,6 @@ class MatchFinder(object):
         If A is being deleted and is matched to node B, then no node which
         is not also being deleted can be matched to node B.
         """
-
         self.checkCompatible( rightGraph )
         self.right = RightHandGraph( rightGraph )
         
@@ -153,23 +155,120 @@ class MatchFinder(object):
         if self.impossible:
             return
 
-        (dn, de) = ruleDeletions( self.left, rightGraph )
-    
+        (dn,de) = self.right.ruleDeletions( self.left  )
+        self.deletedNodes = dn
+        self.deletedEdges = de
+        
+        # The problem with getting ruleDeletions back as a list is that
+        # the list isn't smart enough to tell whether directed and undirected
+        # are the same thing, so... make a doubled set to check membership.
+        if nx.is_directed( rightGraph ):
+            deletedEdgeSet = set( de )
+        else:
+            deletedEdgeSet = set( de + [ (b,a) for (a,b) in de ] )
+
+        # "danging condition"
+        # If a node is deleted, then any node with the same endpoint must
+        # be explicitly deleted as well.
+        # For all n in G that are the image of a deleted node (in L)
+        #   if s(e) = n or t(e) = n for an edge e in G, then
+        #       e is the image in G of some deleted edge (in L)
+        #
+        # Example:
+        # rule: X--A => A
+        # graph: 1--2, 1--3, 1--4
+        # if X = 1, then 1--2, 1--3, 1--4 must all be mapped to deleted edges
+        # If X = 2, then 1--2 must be deleted as well, so A = 2
+
+        # n = label on deleted node in left graph
+        for n in dn:
+            deletedNodeVar = self.variables[n]
+
+            indicators = []
+            # i = which graph node was picked
+            for i in self.graph.nodes:
+                if nx.is_directed( self.graph ):
+                    raise MatchError( "Directed graphs not yet supported." )
+                else:
+                    indicator = self._danglingUndirected( n, i )
+                    if indicator is not None:
+                        indicators.append( indicator )
+
+            if len( indicators ) == 1:
+                # No sum needed, in fact we could just set n = i directly?
+                self.model.Add( indicators[0] == 1 )
+            elif len( indicators ) > 1:
+                self.model.AddSumConstraint( indicators, 1, 1 )
+            else:
+                # No i could be found that could possibly be a match.
+                self.impossible = True
+                return
+                
+    def _danglingUndirected( self, n, i ):
+        """Returns a boolean indicator value for the assignment n = i
+        which can be used to ensure one is chosen."""
+        
+        # Could have a self-loop, let's treat it specially
+        deletedAdjacentEdges = \
+            [ (a,b) for (a,b) in self.deletedEdges if a == n and b != n ] + \
+            [ (b,a) for (a,b) in self.deletedEdges if b == n and a != n ]
+
+        graphAdjacent = self.graph[i]
+
+        # OK, an easy case: does N have a self-loop?
+        if (n,n) in self.deletedEdges:
+            # Does i lack a self-loop?
+            if i not in graphAdjacent:
+                # Then impossible to match.
+                print( "{} => {} is impossible, no self-loop".format( n, i ) )
+                self.model.Add( self.variables[n] != i )
+                return None
+
+        # We already covered the other direction-- i is already rejected
+        # if the left graph has a self-loop for n, and i does not have a
+        # self-loop.
+
+        # Match nodes from from deletedAdjacentEdges with neighbors in the graph
+        # Mapping doesn't have to be injective, but it does have to
+        # be surjective.  So, if too many neighbors, can't be a match!
+        # 1--1 is a match for A--B; A--C; A--D => B; C; D with A=1
+        # 1--1; 1--2; 1--3 can't be a match for A--B => B  with A=1
+
+        neighborVars = [ self.variables[t] for (_,t) in deletedAdjacentEdges ]
+
+        if len( graphAdjacent ) > len( neighborVars ):
+            # Can't be surjective
+            print( "{} => {} is impossible, not surjective".format( n, i ) )
+            self.model.Add( self.variables[n] != i )
+            return None
+
+        values = list( surjectiveMappings( len( neighborVars ),
+                                           list( graphAdjacent ) ) )
+        if self.verbose:
+            print( "When {} = {}:".format( n, i ) )
+            print( " ".join( "{:>6}".format( str( x ) ) for x in neighborVars ) )
+            print( "|".join( "------" for x in neighborVars ) )
+            for v in values:
+                print( " ".join( "{:6}".format( y ) for y in v ) )
+            print()
+            
+        indicator = self.model.NewBoolVar( "dangling" + n + str( i ) )
+        hacks.AddAllowedAssignments( self.model, neighborVars, values )\
+            .OnlyEnforceIf( indicator )        
+        self.model.Add( self.variables[n] == i )\
+            .OnlyEnforceIf( indicator )
+        return indicator
+
     def matches( self ):
         if self.impossible:
             return []
         
         callback = MatchAggregator( self )
         solver = cp_model.CpSolver()
-        # print( self.model.ModelProto() )
+        print( self.model.ModelProto() )
 
         start = time.time()
-        # Work around issue https://github.com/google/or-tools/issues/907
-        # SearchForAllSolutions seems to crash on an unsatisfiable model,
-        # but Search does not.  So use that first?
-        status = solver.Solve( self.model )
-        if status != cp_model.INFEASIBLE:
-            status = solver.SearchForAllSolutions( self.model, callback )
+        hacks.cautiousSearch( solver, self.model, callback )
         end = time.time()
 
         # print( solver.ResponseStats() )
@@ -249,6 +348,34 @@ class MatchAggregator( cp_model.CpSolverSolutionCallback ):
             print( repr( e ) )
             raise e
 
+def surjectiveMappings( k, values, optional=[] ):
+    """Enumerate all the ways to select k distinct items from 'values' such that
+    all values appear at least once."""
+    if k < len( values ):
+        return
+    elif k == 1:
+        if len( values ) == 1:
+            yield (values[0],)
+        else:
+            for o in optional:
+                yield (o,)
+
+    # Pick a must-use, it becomes optional
+    for i in range(len(values)):
+        selected = values[i]
+        for m in surjectiveMappings( k-1,
+                                     values[:i] + values[i+1:], 
+                                     optional + [selected] ):
+            yield (selected,) + m
+
+    # Pick a may-use
+    for selected in optional:
+        for m in surjectiveMappings( k-1,
+                                     values, 
+                                     optional ):
+            yield (selected,) + m
+        
             
+        
             
 

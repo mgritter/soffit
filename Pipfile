@@ -7,10 +7,10 @@ verify_ssl = true
 
 [packages]
 pyparsing = "*"
-ortools = "*"
 networkx = "*"
 matplotlib = "*"
 pygraphviz = "*"
+python-constraint = "*"
 
 [requires]
 python_version = "3.5"

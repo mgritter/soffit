@@ -18,10 +18,10 @@
 #
 
 import networkx as nx
-from ortools.sat.python import cp_model
+from constraint import *
+from soffit.constraint import *
 import itertools
 import time
-from soffit import hacks
 
 def graphIdentifiersToNumbers( g ):
     """Replace the graph identified by strings, with one where all nodes
@@ -74,9 +74,7 @@ class MatchFinder(object):
         # Relabel for compactness, nodes numbered 0..(n-1)
         self.graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )
 
-        self.model = cp_model.CpModel()
-        self.variables = {}
-        
+        self.model = Problem()
         self.impossible = False
         self.verbose = verbose
 
@@ -96,13 +94,12 @@ class MatchFinder(object):
         # two variables could match to the same vertex.
         for n in leftGraph.nodes:
             # FIXME: how permissive is this on what may be in a string?
-            v = self.model.NewIntVar( 0, maxVertex, n )
-            self.variables[n] = v
+            self.model.addVariable( n, range( 0, maxVertex + 1 ) )
 
             # Add a contraint to only assign to nodes with identical tag.
             # FIXME: no tag is *not* a wildcard, does that match expectations?
             tag = leftGraph.nodes[n].get( 'tag', None )
-            matchingTag = [ i for i in self.graph.nodes
+            matchingTag = [ (i,) for i in self.graph.nodes
                             if self.graph.nodes[i].get( 'tag', None ) == tag ]
             if self.verbose:
                 print( "node", n, "matchingTag", matchingTag )
@@ -113,9 +110,8 @@ class MatchFinder(object):
             # If node choice is unconstrained, don't bother adding it as
             # a constraint!
             if len( matchingTag ) != len( self.graph.nodes ):
-                self.model.AddAllowedAssignments(
-                    [v],
-                    [ (x,) for x in matchingTag ] )
+                self.model.addConstraint( TupleConstraint( matchingTag ),
+                                          [n] )
 
         # Add an allowed assignment for each edge that must be matched,
         # again limiting to just exact matching tags.
@@ -135,8 +131,9 @@ class MatchFinder(object):
                 revEdges = [ (b,a) for (a,b) in matchingTag ]
                 matchingTag += revEdges
 
-            self.model.AddAllowedAssignments( [self.variables[a], self.variables[b]],
-                                              matchingTag )
+            self.model.addConstraint( TupleConstraint( matchingTag ),
+                                      [ a, b ] )
+                                              
             
     def rightSide( self, rightGraph ):        
         """Specify the right side of a rule; if the rule deletes nodes,
@@ -182,32 +179,21 @@ class MatchFinder(object):
 
         # n = label on deleted node in left graph
         for n in dn:
-            deletedNodeVar = self.variables[n]
-
             indicators = []
             # i = which graph node was picked
+            possible = False
             for i in self.graph.nodes:
                 if nx.is_directed( self.graph ):
                     raise MatchError( "Directed graphs not yet supported." )
                 else:
-                    indicator = self._danglingUndirected( n, i )
-                    if indicator is not None:
-                        indicators.append( indicator )
+                    if self._danglingUndirected( n, i ):
+                        possible = True
 
-            if len( indicators ) == 1:
-                # No sum needed, in fact we could just set n = i directly?
-                self.model.Add( indicators[0] == 1 )
-            elif len( indicators ) > 1:
-                self.model.AddSumConstraint( indicators, 1, 1 )
-            else:
-                # No i could be found that could possibly be a match.
+            if not possible:
                 self.impossible = True
                 return
                 
     def _danglingUndirected( self, n, i ):
-        """Returns a boolean indicator value for the assignment n = i
-        which can be used to ensure one is chosen."""
-        
         # Could have a self-loop, let's treat it specially
         deletedAdjacentEdges = \
             [ (a,b) for (a,b) in self.deletedEdges if a == n and b != n ] + \
@@ -220,9 +206,10 @@ class MatchFinder(object):
             # Does i lack a self-loop?
             if i not in graphAdjacent:
                 # Then impossible to match.
-                print( "{} => {} is impossible, no self-loop".format( n, i ) )
-                self.model.Add( self.variables[n] != i )
-                return None
+                if self.verbose:
+                    print( "{} => {} is impossible, no self-loop".format( n, i ) )
+                self.model.addConstraint( NotInSetConstraint([i]), [n] )
+                return False
 
         # We already covered the other direction-- i is already rejected
         # if the left graph has a self-loop for n, and i does not have a
@@ -234,12 +221,13 @@ class MatchFinder(object):
         # 1--1 is a match for A--B; A--C; A--D => B; C; D with A=1
         # 1--1; 1--2; 1--3 can't be a match for A--B => B  with A=1
 
-        neighborVars = [ self.variables[t] for (_,t) in deletedAdjacentEdges ]
+        neighborVars = [ t for (_,t) in deletedAdjacentEdges ]
 
         if len( graphAdjacent ) > len( neighborVars ):
             # Can't be surjective
-            print( "{} => {} is impossible, not surjective".format( n, i ) )
-            self.model.Add( self.variables[n] != i )
+            if self.verbose:
+                print( "{} => {} is impossible, not surjective".format( n, i ) )
+            self.model.addConstraint( NotInSetConstraint([i]), [n] )
             return None
 
         values = list( surjectiveMappings( len( neighborVars ),
@@ -252,40 +240,41 @@ class MatchFinder(object):
                 print( " ".join( "{:6}".format( y ) for y in v ) )
             print()
             
-        indicator = self.model.NewBoolVar( "dangling" + n + str( i ) )
-        hacks.AddAllowedAssignments( self.model, neighborVars, values )\
-            .OnlyEnforceIf( indicator )        
-        self.model.Add( self.variables[n] == i )\
-            .OnlyEnforceIf( indicator )
-        return indicator
 
+        self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
+                                  [n] + neighborVars )
+        return True
+
+    def _convertNodes( self, soln ):
+        return { k : self.graph.nodes[v]['orig']
+                 for (k,v) in soln.items() }
+        
     def matches( self ):
         if self.impossible:
             return []
         
-        callback = MatchAggregator( self )
-        solver = cp_model.CpSolver()
-        print( self.model.ModelProto() )
-
         start = time.time()
-        hacks.cautiousSearch( solver, self.model, callback )
+        solns = self.model.getSolutions()
         end = time.time()
 
-        # print( solver.ResponseStats() )
-        
         if self.verbose:
-            print( "{} matches in {:.3f} seconds.".format( len( callback.matches ),
+            print( "{} matches in {:.3f} seconds.".format( len( solns ),
                                                           end - start ) )
-        return list( callback.matches )
+        
+        return [ Match(self._convertNodes(s)) for s in solns ]
     
 
 class Match(object):
     """A Match object contains mappings from nodes in the left-hand side
     to nodes in the target graph.
     (It's a graph morphism!)"""
-    def __init__( self ):
-        self.nodeMap = {}
-        self.frozen = False
+    def __init__( self, soln = None ):
+        if soln is None:
+            self.nodeMap = {}
+            self.frozen = False
+        else:
+            self.nodeMap = soln
+            self.frozen = True
         
     def addMap( self, leftNode, graphNode ):
         if self.frozen:
@@ -314,39 +303,6 @@ class Match(object):
     def __hash__( self ):
         self.frozen = True
         return hash( tuple( sorted( self.nodeMap.items() ) ) )
-
-class MatchAggregator( cp_model.CpSolverSolutionCallback ):
-    """Callback implementation for cp_model that gets solutions one at 
-    a time; aggregate them into a list."""
-    def __init__( self, finder ):
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self.nodes = 0
-        self.finder = finder
-        self.variables = finder.variables
-        self.renumberedGraph = finder.graph
-
-        self.matches = set()
-
-    def OnSolutionCallback( self ):
-        try:
-            # variables[n], where n is a node from finder.left,
-            # contains the number of the node in the renumbered graph.
-            # Its original name is in graph.nodes[i]['orig']
-            m = Match()
-
-            for (lhNode, modelVariable) in sorted( self.variables.items() ):
-                renumberedNode = self.Value( modelVariable )
-                origNode = self.renumberedGraph.nodes[renumberedNode]['orig']
-                m.addMap( lhNode, origNode )
-
-            # The use of a set is a hack around the solver returning
-            # the same solution multiple times.
-            self.matches.add( m )
-        except Exception as e:
-            # The C++ library chokes if we throw an exception, but doesn't
-            # print it!
-            print( repr( e ) )
-            raise e
 
 def surjectiveMappings( k, values, optional=[] ):
     """Enumerate all the ways to select k distinct items from 'values' such that

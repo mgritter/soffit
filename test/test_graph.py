@@ -384,7 +384,6 @@ class TestMatchFinding(unittest.TestCase):
 
         print( mList )
         
-        
-        
+                
 if __name__ == '__main__':
     unittest.main()

@@ -424,6 +424,30 @@ class TestMatchFinding(unittest.TestCase):
         # A can be x, then B=C=w
         # A can be z, then B and C are drawn from (s,w) so 4 possibliites
         self.assertEqual( len( mList ), 16 )
-                
+
+    # XFAIL: Identification condition check not done yet.
+    @unittest.expectedFailure
+    def test_right_identification( self ):
+        l = parseGraphString( "A; B" )
+        self.assertFalse( nx.is_directed( l ) )
+        r = parseGraphString( "B--C" )
+        self.assertFalse( nx.is_directed( r ) )
+        g = parseGraphString( "x; y; z;" )
+        self.assertFalse( nx.is_directed( g ) )
+
+        finder = sg.MatchFinder( g, verbose=testVerbose )
+        finder.leftSide( l )
+        finder.rightSide( r )
+        mList = finder.matches()
+
+        if testVerbose:
+            for m in mList:
+                print( m )
+
+        # A and B should not map to the same node
+        for m in mList:
+            self.assertNotEqual( m.node('A'), m.node( 'B' ) )
+
+        
 if __name__ == '__main__':
     unittest.main()

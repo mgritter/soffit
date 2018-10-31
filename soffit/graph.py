@@ -199,6 +199,10 @@ class MatchFinder(object):
             [ (a,b) for (a,b) in self.deletedEdges if a == n and b != n ] + \
             [ (b,a) for (a,b) in self.deletedEdges if b == n and a != n ]
 
+        if len( deletedAdjacentEdges ) == 0:
+            # Condition does not apply!
+            return True
+        
         graphAdjacent = self.graph[i]
 
         # OK, an easy case: does N have a self-loop?

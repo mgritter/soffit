@@ -24,7 +24,8 @@ class TupleConstraint(Constraint):
     appear as a tuple (in the order specified for the variables.)."""
     
     def __init__( self, tupleList ):
-        self.allowedSet = set( tuple( t ) for t in tupleList )        
+        self.allowedSet = set( tuple( t ) for t in tupleList )
+        # print( "AllowedSet:", self.allowedSet )
         if len( self.allowedSet ) > 0:
             someTuple = next( iter( self.allowedSet ) )
             self.nthSet = [ set( t[i] for t in self.allowedSet )

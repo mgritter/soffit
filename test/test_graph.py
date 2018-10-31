@@ -369,7 +369,7 @@ class TestMatchFinding(unittest.TestCase):
         if testVerbose:
             print( me.exception )
 
-    def test_right_dangling_nodes( self ):
+    def test_right_dangling_edges( self ):
         l = parseGraphString( "A--B; A--C" )
         self.assertFalse( nx.is_directed( l ) )
         r = parseGraphString( "B; C" )
@@ -382,8 +382,48 @@ class TestMatchFinding(unittest.TestCase):
         finder.rightSide( r )
         mList = finder.matches()
 
-        print( mList )
+        if testVerbose:
+            for m in mList:
+                print( m )
+
+        # s can be deleted (B=z, C=z)
+        # z can be deleted (B=s, C=w) or (B=w, C=s)
+        # y can be deleted (B=w, C=w)
+        # x can be deleted (B=w, C=w)
         
+        self.assertEqual( len( mList ), 5 )
+        for m in mList:
+            if m.node( 'A' ) == 's':
+                self.assertEqual( m.node( 'B' ), 'z' )
+                self.assertEqual( m.node( 'C' ), 'z' )
+            if m.node( 'A' ) in ['y', 'x']:
+                self.assertEqual( m.node( 'B' ), 'w' )
+                self.assertEqual( m.node( 'C' ), 'w' )
+
+    def test_right_no_dangling_edges( self ):
+        # Like the previous test, but do not deleted the node, only the edges
+        l = parseGraphString( "A--B; A--C" )
+        self.assertFalse( nx.is_directed( l ) )
+        r = parseGraphString( "A; B; C" )
+        self.assertFalse( nx.is_directed( r ) )
+        g = parseGraphString( "w--x; w--y; w--z; z--s" )
+        self.assertFalse( nx.is_directed( g ) )
+
+        finder = sg.MatchFinder( g, verbose=testVerbose )
+        finder.leftSide( l )
+        finder.rightSide( r )
+        mList = finder.matches()
+
+        if testVerbose:
+            for m in mList:
+                print( m )
+
+        # A can be w, and then B and C are drawn from (x,y,z) so 9 possibilities
+        # A can be y, then B=C=w
+        # A can be s, then B=C=z
+        # A can be x, then B=C=w
+        # A can be z, then B and C are drawn from (s,w) so 4 possibliites
+        self.assertEqual( len( mList ), 16 )
                 
 if __name__ == '__main__':
     unittest.main()

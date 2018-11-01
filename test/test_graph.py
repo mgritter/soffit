@@ -370,7 +370,7 @@ class TestMatchFinding(unittest.TestCase):
     def rightConditionTest( self, matchLen,
                             l, r, g ):
         l = parseGraphString( l )
-        r = parseGraphString( r )
+        r = parseGraphString( r, joinAllowed=True )
         g = parseGraphString( g )
         
         self.assertFalse( nx.is_directed( l ) )
@@ -467,6 +467,19 @@ class TestMatchFinding(unittest.TestCase):
                                          l = "A--B--C",
                                          r = "N1--A--B--C--N2",
                                          g = "x--y--z" )
+
+    def test_merge_and_delete( self ):
+        mList = self.rightConditionTest( 6,
+                                         l = "A[target]; A--B; A--C; A--D",
+                                         r = "B^C^D",
+                                         g = "y[target]; x--y--z" )
+        # B,C,D must map to x and z, but cannot be all x or all z
+        # (because then we can't delete y)
+        
+        mList = self.rightConditionTest( 7,
+                                         l = "A[target]; A--B; A--C; A--D",
+                                         r = "B^C^D",
+                                         g = "y[target]; w[target]; w--x--y--z" )
         
 if __name__ == '__main__':
     unittest.main()

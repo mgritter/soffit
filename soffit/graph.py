@@ -422,35 +422,67 @@ class RuleApplication(object):
         self.left = finder.left
         # The networkx graph, not the RightHandGraph object
         self.right = finder.right.right
+        self.rename = finder.right.rename
+        self.join = finder.right.join
         
         self.match = match.copy()
         self.beforeGraph = finder.originalGraph
 
     def verify( self ):
+        gTest = self.beforeGraph.copy()
         for e in self.finder.deletedEdges:
             (m_s,m_t) = self.match.edge( e )
-            assert (m_s,m_t) in self.graph.edges, "Missing edge " + str( e ) + " => " + str((m_s,m_t))
+            assert (m_s,m_t) in gTest.edges, "Missing edge " + str( e ) + " => " + str((m_s,m_t))
 
         for n in self.finder.deletedNodes:
             m_n = self.match.node( n )
-            assert m_n in self.graph.nodes, "Missing node " + str( n )  + " => " + str(m_n)
+            assert m_n in gTest.nodes, "Missing node " + str( n )  + " => " + str(m_n)
 
-        gTest = self.beforeGraph.copy()
         self._deleteEdges( gTest )
 
         for n in self.finder.deletedNodes:
             m_n = self.match.node( n )
-            assert len( self.gTest[m_n] ) == 0, "Remaining edges on " + str( n )  + " => " + str(m_n)
+            assert len( gTest[m_n] ) == 0, "Remaining edges on " + str( n )  + " => " + str(m_n)
 
     def _deleteEdges( self, g ):
-        for e in self.finder.deletedEdges:
-            (m_s,m_t) = self.match.edge( e )
-            g.remove_edge( (m_s, m_t) )
+        alreadyDeleted = set()
+        for e in self.finder.deletedEdges:            
+            m_e = self.match.edge( e )
+            if m_e not in alreadyDeleted:
+                (m_s, m_t) = m_e
+                g.remove_edge( m_s, m_t )
+                alreadyDeleted.add( m_e )
+                if not nx.is_directed( g ):
+                    alreadyDeleted.add( (m_t, m_s) )
         
     def _deleteNodes( self, g ):
+        alreadyDeleted = set()
         for n in self.finder.deletedNodes:
             m_n = self.match.node( n )
-            g.remove_node( m_n )
+            if m_n not in alreadyDeleted:
+                g.remove_node( m_n )
+                alreadyDeleted.add( m_n )
+
+    def _mergeNodes( self, g ):
+        # The label on the combined edge will be placed in _retagEdge
+        # And the label on the combined node will be placed in _retagNode
+        #
+        # So our job is limited to ensuring any edges that terminate on a merged
+        # node are routed to the correct place.
+        # join has just the nodes that need to be changed
+        # rename has the canonical renaming
+        alreadyMerged = set()
+        
+        for v in self.join:
+            u = self.rename[ v ]
+            m_v = self.match.node( v )
+            m_u = self.match.node( u )
+            # Matching could have identified two nodes that are both to be merged
+            # or are already merged!            
+            if m_v != m_u and m_v not in alreadyMerged:
+                g = nx.algorithms.minors.contracted_nodes( g, m_u, m_v, self_loops = True )
+                alreadyMerged.add( m_v )
+        return g
 
     def _addNode( self, g, n ):
         r_n = self.right.nodes[n]
@@ -510,6 +542,7 @@ class RuleApplication(object):
         g = self.beforeGraph.copy()
         self._deleteEdges( g )
         self._deleteNodes( g )
+        g = self._mergeNodes( g )
         self._addAndRelabelNodes( g )
         self._addAndRelabelEdges( g )
 

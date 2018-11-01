@@ -22,6 +22,8 @@ import networkx as nx
 import soffit.graph as sg
 from soffit.parse import parseGraphString
 
+verbose = True
+
 class TestGraphRewrite(unittest.TestCase):
     def dump_text( self, g ):
         for n in g.nodes:
@@ -38,13 +40,14 @@ class TestGraphRewrite(unittest.TestCase):
                     
     def setup_rewrite( self, l, r, g, realMatches = True ):
         l = parseGraphString( l )
-        r = parseGraphString( r )
+        r = parseGraphString( r, joinAllowed=True )
         g = sg.graphIdentifiersToNumbers( parseGraphString( g ) )
-        print()
-        print( "*** BEFORE ***" )
-        self.dump_text( g )
-
         self.before = g
+
+        if verbose:
+            print()
+            print( "*** BEFORE ***" )
+            self.dump_text( g )
         
         finder = sg.MatchFinder( g, verbose=False)
         finder.leftSide( l )
@@ -53,22 +56,89 @@ class TestGraphRewrite(unittest.TestCase):
 
         if realMatches:
             return finder.matches()
+
+    def perform_rewrite( self, l, r, g ):
+        mList = self.setup_rewrite( l, r, g, True )
+        self.match = mList[0]
+        if verbose:
+            print( self.match )
+            
+        self.rule = sg.RuleApplication( self.finder, self.match )
+        self.after = self.rule.result()
+
+        if verbose:
+            print()
+            print( "*** AFTER ***" )
+            self.dump_text( self.after )
         
+    def find_any_tags( self, graph, *tt ):
+        byTag = {}
+        for n in graph.nodes:
+            if 'tag' in graph.nodes[n]:
+                byTag[graph.nodes[n]['tag']] = n
+        return [ byTag.get( t, None ) for t in tt ]
+    
     def test_linear_chain(self):
-        mList = self.setup_rewrite( l = "A[left]; B[right]; A--B",
-                                    r = "A; B[left]; C[right]; A--B--C",
-                                    g = "X[left]; Y[right]; Z[head]; Z--X--Y" )
-        for m in mList:
-            print( m )
+        self.perform_rewrite( l = "A[left]; B[right]; A--B",
+                              r = "A; B[left]; C[right]; A--B--C",
+                              g = "X[left]; Y[right]; Z[head]; Z--X--Y" )
+        g2 = self.after
+        ( n_head, n_left, n_right ) = self.find_any_tags( g2, 'head', 'left', 'right' )
+        self.assertIsNotNone( n_head )
+        self.assertIsNotNone( n_left )
+        self.assertIsNotNone( n_right )
+        self.assertIn( ( n_left, n_right ), g2.edges )
+        self.assertNotIn( ( n_head, n_left ), g2.edges )
 
-        match = mList[0]
-        rule = sg.RuleApplication( self.finder, match )
-        g2 = rule.result()
-                            
-        print()
-        print( "*** AFTER ***" )
-        self.dump_text( g2 )
+    def test_merge_delete(self):
+        self.perform_rewrite( l = "A[target]; A--B; A--C; A--D",
+                              r = "B^C^D [star]",
+                              g = "X[target]; L--X--R" )
+        g2 = self.after
+        self.assertEqual( len( g2.nodes ), 1 )
+        self.assertEqual( len( g2.edges ), 0 )
+        n = list( g2.nodes )[0]
+        self.assertEqual( g2.nodes[n]['tag'], 'star' )
+        
+    def test_merge_delete_self_loop(self):
+        self.perform_rewrite( l = "A[target]; A--B; A--C; A--D",
+                              r = "B^C^D [star]; B--D",
+                              g = "X[target]; L--X--R; X--S" )
+        g2 = self.after
+        self.assertEqual( len( g2.nodes ), 1 )
+        self.assertEqual( len( g2.edges ), 1 )
+        n = list( g2.nodes )[0]
+        self.assertEqual( g2.nodes[n]['tag'], 'star' )
+        self.assertIn( (n,n), g2.edges )
 
+    def test_merge_attached(self):
+        self.perform_rewrite( l = "A[1]; B[2]",
+                              r = "A^B [3]",
+                              g = "X[1]; Y[2]; Z[4]; X--Y--Z" )
+        g2 = self.after
+        self.assertEqual( len( g2.nodes ), 2 )
+        self.assertEqual( len( g2.edges ), 2 )
+        ( n_1, n_2, n_3, n_4 ) = self.find_any_tags( g2, '1', '2', '3', '4' )
+
+        self.assertIsNone( n_1 )
+        self.assertIsNone( n_2 )
+        self.assertIsNotNone( n_3 )
+        self.assertIsNotNone( n_4 )
+        self.assertIn( (n_3,n_3), g2.edges )
+        self.assertIn( (n_3,n_4), g2.edges )
+
+    def test_two_merges(self):
+        # FIXME: the tag between A^B -- C^D is essentially arbitrary here,
+        # what does this look like as a pushout?
+        self.perform_rewrite( l = "A[1]; B[2]; C[3]; D[4];",
+                              r = "A^B[12]; C^D[34]",
+                              g = "W[1]; X[2]; Y[3]; Z[4]; X--Y[x]; Y--Z[y]; Z--W[z]; W--X[w]" )
+        g2 = self.after
+        ( n_12, n_34 ) = self.find_any_tags( g2, '12', '34' )
+        self.assertIsNotNone( n_12 )
+        self.assertIsNotNone( n_34 )
+        
+                
 
 if __name__ == '__main__':
     unittest.main()

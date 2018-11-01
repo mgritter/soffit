@@ -23,8 +23,6 @@ import networkx as nx
 import soffit.graph as sg
 from soffit.parse import parseGraphString
 
-import sys
-
 # FIXME: change this to key off the test runner's -v option, but
 # it seems there are only gross ways to do so.
 # https://stackoverflow.com/questions/13761697/how-to-access-the-unittest-mainverbosity-setting-in-a-unittest-testcase

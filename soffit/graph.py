@@ -33,6 +33,22 @@ def graphIdentifiersToNumbers( g ):
     ret.graph['nextId'] = nextId
     return ret
 
+def allocateNewNode( g, tag = None ):
+    """Allocate a new numeric node in the graph, based on its nextId attribute.
+    Such graphs are created by graphIndentifiersToNumbers."""
+    
+    if not 'nextId' in g.graph:
+        raise MatchError( "Graph must come from graphIndentifiersToNumbers." )
+
+    n = g.graph['nextId']
+    g.graph['nextId'] = n + 1
+    if tag is None:
+        g.add_node( n )
+    else:
+        g.add_node( n, tag = tag )
+
+    return n
+
 class RightHandGraph(object):
     def __init__( self, right  ):
         self.right = right
@@ -71,6 +87,7 @@ class MatchFinder(object):
         """Initialize the finder with the graph in which matches are to 
         be found."""
         
+        self.originalGraph = graph
         # Relabel for compactness, nodes numbered 0..(n-1)
         self.graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )
 
@@ -301,7 +318,7 @@ class MatchFinder(object):
     def _convertNodes( self, soln ):
         return { k : self.graph.nodes[v]['orig']
                  for (k,v) in soln.items() }
-        
+
     def matches( self ):
         if self.impossible:
             return []
@@ -353,10 +370,19 @@ class Match(object):
         return isinstance( other, Match ) and \
             self.nodeMap == other.nodeMap
 
+    def __contains__( self, n ):
+        return n in self.nodeMap
+    
     def __hash__( self ):
         self.frozen = True
         return hash( tuple( sorted( self.nodeMap.items() ) ) )
 
+    def copy( self ):
+        # copy is unfrozen
+        m = Match()
+        m.nodeMap = self.nodeMap.copy()
+        return m
+        
 def surjectiveMappings( k, values, optional=[] ):
     """Enumerate all the ways to select k distinct items from 'values' such that
     all values appear at least once."""
@@ -385,6 +411,107 @@ def surjectiveMappings( k, values, optional=[] ):
             yield (selected,) + m
         
             
-        
-            
+class RuleApplication(object):
+    """Apply a rule to a graph where it has been matched."""
+    
+    def __init__( self, finder, match ):
+        """Create a RuleApplication using a MatchFinder and a 
+        Match that it produced."""
+        self.finder = finder
 
+        self.left = finder.left
+        # The networkx graph, not the RightHandGraph object
+        self.right = finder.right.right
+        
+        self.match = match.copy()
+        self.beforeGraph = finder.originalGraph
+
+    def verify( self ):
+        for e in self.finder.deletedEdges:
+            (m_s,m_t) = self.match.edge( e )
+            assert (m_s,m_t) in self.graph.edges, "Missing edge " + str( e ) + " => " + str((m_s,m_t))
+
+        for n in self.finder.deletedNodes:
+            m_n = self.match.node( n )
+            assert m_n in self.graph.nodes, "Missing node " + str( n )  + " => " + str(m_n)
+
+        gTest = self.beforeGraph.copy()
+        self._deleteEdges( gTest )
+
+        for n in self.finder.deletedNodes:
+            m_n = self.match.node( n )
+            assert len( self.gTest[m_n] ) == 0, "Remaining edges on " + str( n )  + " => " + str(m_n)
+
+    def _deleteEdges( self, g ):
+        for e in self.finder.deletedEdges:
+            (m_s,m_t) = self.match.edge( e )
+            g.remove_edge( (m_s, m_t) )
+        
+    def _deleteNodes( self, g ):
+        for n in self.finder.deletedNodes:
+            m_n = self.match.node( n )
+            g.remove_node( m_n )
+
+    def _addNode( self, g, n ):
+        r_n = self.right.nodes[n]
+        new_n = allocateNewNode( g, r_n.get( 'tag', None ) )
+        self.match.addMap( n, new_n )
+        
+    def _retagNode( self, g, n ):
+        r_n = self.right.nodes[n]
+        
+        m_n = self.match.node( n )
+        g_n = g.nodes[m_n]
+
+        if 'tag' in r_n:
+            g_n['tag'] = r_n['tag']
+        elif 'tag' in g_n:
+            del g_n['tag']
+    
+    def _addAndRelabelNodes( self, g ):
+        # FIXME: this is dumb, add 'nodes' to RightHandGraph
+        for rightNode in self.right.nodes:
+            if rightNode in self.match:
+                # It must have been in left, too, but the tag may have changed
+                self._retagNode( g, rightNode )
+            else:
+                self._addNode( g, rightNode )
+
+    def _addEdge( self, g, e ):
+        (m_s, m_t) = self.match.edge( e ) 
+        r_e = self.right.edges[e]
+        g.add_edge( m_s, m_t, **r_e )
+
+    def _retagEdge( self, g, e ):        
+        r_e = self.right.edges[e]
+        
+        m_e = self.match.edge( e )
+        g_e = g.edges[m_e]
+
+        if 'tag' in r_e:
+            g_e['tag'] = r_e['tag']
+        elif 'tag' in g_e:
+            del g_e['tag']
+            
+    def _addAndRelabelEdges( self, g ):
+        for (a,b) in self.right.edges:
+            # Should have already added the endpoints if they are new
+            assert a in self.match
+            assert b in self.match
+            if (a,b) in self.left.edges:
+                self._retagEdge( g, (a,b) )
+            else:
+                self._addEdge( g, (a,b) )
+        
+    def result( self ):
+        if __debug__:
+            self.verify()
+            
+        g = self.beforeGraph.copy()
+        self._deleteEdges( g )
+        self._deleteNodes( g )
+        self._addAndRelabelNodes( g )
+        self._addAndRelabelEdges( g )
+
+        return g
+        

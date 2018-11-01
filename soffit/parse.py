@@ -121,7 +121,7 @@ def createJoinDictionary( s, loc, toks ):
     # This just silently ignores the extra.
     ret['join'] = { t : toks[0] for t in toks[1:] if t != toks[0] }
     return ret
-    
+
 nodeName = delimitedList( vertexId, join ).setParseAction( createJoinDictionary )
 
 destination = Group(
@@ -181,8 +181,15 @@ vertexOnly = nodeName + Optional( tag )
 
 graphElement = Group( edges | vertexOnly ).setParseAction( dropTag )
 
-graph = delimitedList( graphElement, semicolon ).setParseAction( mergeJoin ) + \
-        Optional( semicolon ).suppress() + StringEnd()
+def emptyJoinDictionary( s, loc, toks ):
+    ret =  ParseResults( [] )
+    ret['join'] = {}
+    return ret
+    
+emptyGraph = Optional( semicolon ).suppress() + StringEnd().setParseAction( emptyJoinDictionary ) 
+
+graph = ( delimitedList( graphElement, semicolon ).setParseAction( mergeJoin ) +
+          Optional( semicolon ).suppress() + StringEnd() ) | emptyGraph
 
 class ParseError(Exception):
     pass

@@ -40,10 +40,10 @@ class TestTupleConstraint(unittest.TestCase):
         self.assertEqual( set( [3, 4, 5] ), tc.nthSet[2] )
 
     def domains( self ):
-        return { 'a' : list( range( 0, 10 ) ),
-                 'b' : list( range( 0, 10 ) ),
-                 'c' : list( range( 0, 10 ) ),
-                 'd' : list( range( 0, 10 ) ) }
+        return { 'a' : Domain( range( 0, 10 ) ),
+                 'b' : Domain( range( 0, 10 ) ),
+                 'c' : Domain( range( 0, 10 ) ),
+                 'd' : Domain( range( 0, 10 ) ) }
                  
     def test_call_incomplete( self ):
         testSet = [ [1, 2, 3],
@@ -79,7 +79,7 @@ class TestTupleConstraint(unittest.TestCase):
         tc = TupleConstraint( testSet )
         variables = [ 'a', 'b', 'c' ]
         d = self.domains()
-        constraints = [ ( tc, [variables] ), ( tc, ['x', 'y', 'z'] ) ]
+        constraints = [ ( tc, variables ), ( tc, ['x', 'y', 'z'] ) ]
         vconstraints = {}
         vconstraints['a'] = [ constraints[0] ]
         vconstraints['b'] = [ constraints[0] ]
@@ -126,10 +126,10 @@ class TestTupleConstraint(unittest.TestCase):
 
 class TestConditionalConstraint(unittest.TestCase):
     def domains( self ):
-        return { 'a' : list( range( 0, 10 ) ),
-                 'b' : list( range( 0, 10 ) ),
-                 'c' : list( range( 0, 10 ) ),
-                 'd' : list( range( 0, 10 ) ) }
+        return { 'a' : Domain( range( 0, 10 ) ),
+                 'b' : Domain( range( 0, 10 ) ),
+                 'c' : Domain( range( 0, 10 ) ),
+                 'd' : Domain( range( 0, 10 ) ) }
     
     def test_call( self ):
         pairs = [ (1, 2),
@@ -158,6 +158,98 @@ class TestConditionalConstraint(unittest.TestCase):
         self.assertTrue( cc( ['a', 'b', 'c'],
                              self.domains(),
                              { 'b' : 1, 'c': 1, 'd': 1 } ) )
-                
+
+class TestOverlapConstraint(unittest.TestCase):
+    def domains( self ):
+        return { 'a' : Domain( range( 0, 10 ) ),
+                 'b' : Domain( range( 0, 10 ) ),
+                 'c' : Domain( range( 0, 10 ) ),
+                 'd' : Domain( range( 0, 10 ) ) }
+
+    def test_nonoverlapping_2var_complete( self ):
+        firstSet = ['a']
+        secondSet = ['b']
+        nc = NonoverlappingSets( firstSet, secondSet )
+
+        self.assertFalse( nc( ['a', 'b'],
+                              self.domains(),
+                              { 'a' : 1, 'b' : 1, 'c': 2, 'd': 3 } ) )
+
+        self.assertTrue( nc( ['a', 'b'],
+                              self.domains(),
+                              { 'a' : 1, 'b' : 2 } ) )
+
+    def test_nonoverlapping_2var_incomplete( self ):
+        firstSet = ['a']
+        secondSet = ['b']
+        nc = NonoverlappingSets( firstSet, secondSet )
+
+        self.assertTrue( nc( ['a', 'b'],
+                             self.domains(),
+                             { 'a' : 1 } ) )
+
+        self.assertTrue( nc( ['a', 'b'],
+                             self.domains(),
+                             { 'b' : 1 } ) )
+
+    def test_nonoverlapping_4var_complete( self ):
+        firstSet = ['a', 'b']
+        secondSet = ['c', 'd']
+        nc = NonoverlappingSets( firstSet, secondSet )
+
+        self.assertFalse( nc( ['a', 'b', 'c', 'd'],
+                              self.domains(),
+                              { 'a' : 1, 'b' : 2, 'c': 3, 'd': 1 } ) )
+
+        self.assertTrue( nc( ['a', 'b', 'c', 'd'],
+                              self.domains(),
+                              { 'a' : 1, 'b' : 2, 'c': 3, 'd': 4 } ) )
+
+        self.assertTrue( nc( ['a', 'b', 'c', 'd'],
+                             self.domains(),
+                             { 'a' : 1, 'b' : 1, 'c': 4, 'd': 4 } ) )
+
+    def test_nonoverlapping_4var_incomplete( self ):
+        firstSet = ['a', 'b']
+        secondSet = ['c', 'd']
+        nc = NonoverlappingSets( firstSet, secondSet )
+
+        self.assertFalse( nc( ['a', 'b', 'c', 'd'],
+                              self.domains(),
+                              { 'a' : 1, 'b' : 2, 'd': 1 } ) )
+
+        self.assertTrue( nc( ['a', 'b', 'c', 'd'],
+                              self.domains(),
+                              { 'a' : 1, 'c': 3, 'd': 4 } ) )
+
+        self.assertTrue( nc( ['a', 'b', 'c', 'd'],
+                              self.domains(),
+                              { 'a' : 1, 'b' : 2, 'd': 4 } ) )
+
+        self.assertTrue( nc( ['a', 'b', 'c', 'd'],
+                             self.domains(),
+                             { 'a' : 1, 'b' : 1 } ) )
+
+        self.assertTrue( nc( ['a', 'b', 'c', 'd'],
+                             self.domains(),
+                             { 'a' : 1, 'b' : 1, 'd' : 4 } ) )
+
+    def test_nonoverlapping_precprocess_empty( self ):
+        nc = NonoverlappingSets( ['a', 'b'], [] )
+        variables = [ 'a', 'b' ]
+        d = self.domains()
+        constraints = [ ( nc, variables ), ( nc, ['x', 'y', 'z'] ) ]
+        vconstraints = {}
+        vconstraints['a'] = [ constraints[0] ]
+        vconstraints['b'] = [ constraints[0] ]
+        vconstraints['x'] = [ constraints[1] ]
+        nc.preProcess( variables, d, constraints, vconstraints )
+        self.assertEqual( len( constraints ), 1 )
+        self.assertEqual( len( vconstraints['a'] ), 0 )
+        self.assertEqual( len( vconstraints['b'] ), 0 )
+        self.assertEqual( len( vconstraints['x'] ), 1 )
+        
+    
+        
 if __name__ == '__main__':
     unittest.main()

@@ -40,6 +40,17 @@ class TestGraphParsing(unittest.TestCase):
         self.assertTrue( g.has_node( "Z" ) )
         self.assertFalse( g.has_node( ";" ) )
 
+    def test_empty_graph(self):
+        g = parseGraphString( "" )
+        self.assertIsNotNone( g )
+        self.assertEqual( len( g.nodes ), 0 )
+        self.assertEqual( len( g.edges ), 0 )
+
+        g2 = parseGraphString( ";" )
+        self.assertIsNotNone( g2 )
+        self.assertEqual( len( g2.nodes ), 0 )
+        self.assertEqual( len( g2.edges ), 0 )
+
     def test_single_edge( self ):
         g = parseGraphString( "X -- A" )
         self.assertIsNotNone( g )

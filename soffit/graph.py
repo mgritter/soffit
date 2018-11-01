@@ -156,14 +156,6 @@ class MatchFinder(object):
         self.deletedNodes = dn
         self.deletedEdges = de
         
-        # The problem with getting ruleDeletions back as a list is that
-        # the list isn't smart enough to tell whether directed and undirected
-        # are the same thing, so... make a doubled set to check membership.
-        if nx.is_directed( rightGraph ):
-            deletedEdgeSet = set( de )
-        else:
-            deletedEdgeSet = set( de + [ (b,a) for (a,b) in de ] )
-
         # "danging condition"
         # If a node is deleted, then any node with the same endpoint must
         # be explicitly deleted as well.
@@ -183,6 +175,10 @@ class MatchFinder(object):
             # i = which graph node was picked
             possible = False
             for i in self.graph.nodes:
+                # FIXME: check tags *here* too?
+                # Or do both checks in a single pass?  This only
+                # coveres deleted nodes n, though.
+        
                 if nx.is_directed( self.graph ):
                     raise MatchError( "Directed graphs not yet supported." )
                 else:
@@ -192,23 +188,74 @@ class MatchFinder(object):
             if not possible:
                 self.impossible = True
                 return
-                
+
+        if nx.is_directed( self.graph ):
+            raise MatchError( "Directed graphs not yet supported." )
+        else:
+            self._identificationUndirected()
+            
+
+    def _identificationUndirected( self ):
+        """Restrict matches of deleted nodes and deleted edges,
+        to nodes and edges that are not matched with undeleted nodes
+        and undeleted edges."""
+        dn = self.deletedNodes
+        de = self.deletedEdges
+        un = [ n for n in self.left.nodes if n not in dn ]
+        ue = [ (a,b) for (a,b) in self.left.edges if
+               ( (a,b) not in de and (b,a) not in de ) ]
+
+        # In the technical report [Martini 1996] this condition is
+        # restricted further, that two left-nodes may not be mapped to the
+        # same node of if either is deleted.
+        # I don't understand this restriction; it seems OK that if A and B
+        # are both being deleted, to allow A->x and B->x simultaneously?
+
+        # Two nodes may only be identified if they are both deleted, or both
+        # undeleted.
+        if self.verbose:
+            print( "Nonoverlapping node sets:" )
+            print( "A=", dn )
+            print( "B=", un )
+        self.model.addConstraint( NonoverlappingSets( dn, un ),
+                                  dn + un )
+
+        if self.verbose:
+            print( "Nonoverlapping edge sets:" )
+            print( "A=", de )
+            print( "B=", ue )
+        edgeVars = list( set( itertools.chain.from_iterable( de + ue ) ) )
+        # Two edges may only be identified if they are both deleted, or both
+        # undeleted.
+        self.model.addConstraint( NonoverlappingUnorderedPairs( de, ue ),
+                                  edgeVars )
+            
     def _danglingUndirected( self, n, i ):
+        """Restrict matches of deleted node n to graph node i,
+        only to those which leave no undeleted edges dangling."""
+
         # Could have a self-loop, let's treat it specially
         deletedAdjacentEdges = \
             [ (a,b) for (a,b) in self.deletedEdges if a == n and b != n ] + \
             [ (b,a) for (a,b) in self.deletedEdges if b == n and a != n ]
 
-        if len( deletedAdjacentEdges ) == 0:
-            # Condition does not apply!
-            return True
-        
         graphAdjacent = self.graph[i]
 
-        # OK, an easy case: does N have a self-loop?
-        if (n,n) in self.deletedEdges:
-            # Does i lack a self-loop?
-            if i not in graphAdjacent:
+        # An easy case: does i have too many edges for the rule to delete
+        # them all?
+        if len( graphAdjacent ) > len( deletedAdjacentEdges ):
+            if self.verbose:
+                print( "{} => {} is impossible, too many neighbors".format( n, i ) )
+            self.model.addConstraint( NotInSetConstraint([i]), [n] )
+            return False
+
+        # Are there no incident edges, and we didn't expect any?
+        if len( graphAdjacent ) == 0 and len( deletedAdjacentEdges ) == 0:
+            return True
+            
+        # Another easy case: does i have a self-loop but N does not?
+        if i in graphAdjacent:
+            if (n,n) not in self.deletedEdges:
                 # Then impossible to match.
                 if self.verbose:
                     print( "{} => {} is impossible, no self-loop".format( n, i ) )
@@ -238,12 +285,14 @@ class MatchFinder(object):
                                            list( graphAdjacent ) ) )
         if self.verbose:
             print( "When {} = {}:".format( n, i ) )
-            print( " ".join( "{:>6}".format( str( x ) ) for x in neighborVars ) )
-            print( "|".join( "------" for x in neighborVars ) )
-            for v in values:
-                print( " ".join( "{:6}".format( y ) for y in v ) )
+            if len( values ) == 0:
+                print( "No neighbor mappings found??" )
+            else:
+                print( " ".join( "{:>6}".format( str( x ) ) for x in neighborVars ) )
+                print( "|".join( "------" for x in neighborVars ) )
+                for v in values:
+                    print( " ".join( "{:6}".format( y ) for y in v ) )
             print()
-            
 
         self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
                                   [n] + neighborVars )

@@ -369,12 +369,14 @@ class TestMatchFinding(unittest.TestCase):
         if testVerbose:
             print( me.exception )
 
-    def test_right_dangling_edges( self ):
-        l = parseGraphString( "A--B; A--C" )
+    def rightConditionTest( self, matchLen,
+                            l, r, g ):
+        l = parseGraphString( l )
+        r = parseGraphString( r )
+        g = parseGraphString( g )
+        
         self.assertFalse( nx.is_directed( l ) )
-        r = parseGraphString( "B; C" )
         self.assertFalse( nx.is_directed( r ) )
-        g = parseGraphString( "w--x; w--y; w--z; z--s" )
         self.assertFalse( nx.is_directed( g ) )
 
         finder = sg.MatchFinder( g, verbose=testVerbose )
@@ -386,12 +388,26 @@ class TestMatchFinding(unittest.TestCase):
             for m in mList:
                 print( m )
 
+        self.assertEqual( len( mList ), matchLen )
+        return mList
+        
+    def test_dangling_not_allowed( self ):
+        self.rightConditionTest( 0,
+            l = "A [foo]",
+            r = "",
+            g = "x [foo]; y [foo]; x -- y;"
+        )
+        
+    def test_right_dangling_edges( self ):
+        mList = self.rightConditionTest( 5,
+                                         l = "A--B; A--C",
+                                         r = "B; C",
+                                         g = "w--x; w--y; w--z; z--s" )
         # s can be deleted (B=z, C=z)
         # z can be deleted (B=s, C=w) or (B=w, C=s)
         # y can be deleted (B=w, C=w)
         # x can be deleted (B=w, C=w)
         
-        self.assertEqual( len( mList ), 5 )
         for m in mList:
             if m.node( 'A' ) == 's':
                 self.assertEqual( m.node( 'B' ), 'z' )
@@ -400,54 +416,59 @@ class TestMatchFinding(unittest.TestCase):
                 self.assertEqual( m.node( 'B' ), 'w' )
                 self.assertEqual( m.node( 'C' ), 'w' )
 
+    def test_self_loop( self ):
+        mList = self.rightConditionTest( 0,
+                                         l = "A--A--B",
+                                         r = "A--B",
+                                         g = "x--x; y--z1--z2" )
+
+        mList = self.rightConditionTest( 1,
+                                         l = "A--A--B",
+                                         r = "A--A--B--C",
+                                         g = "x--x" )
+        # A=>x, B=>x, A--A => x--x, A--B => x--x
+
+        mList = self.rightConditionTest( 0,
+                                         l = "A--A--B",
+                                         r = "A--B--C",
+                                         g = "x--y--z" )
+
     def test_right_no_dangling_edges( self ):
-        # Like the previous test, but do not deleted the node, only the edges
-        l = parseGraphString( "A--B; A--C" )
-        self.assertFalse( nx.is_directed( l ) )
-        r = parseGraphString( "A; B; C" )
-        self.assertFalse( nx.is_directed( r ) )
-        g = parseGraphString( "w--x; w--y; w--z; z--s" )
-        self.assertFalse( nx.is_directed( g ) )
-
-        finder = sg.MatchFinder( g, verbose=testVerbose )
-        finder.leftSide( l )
-        finder.rightSide( r )
-        mList = finder.matches()
-
-        if testVerbose:
-            for m in mList:
-                print( m )
-
+        mList = self.rightConditionTest( 16,
+                                         l = "A--B; A--C",
+                                         r = "A; B; C",
+                                         g = "w--x; w--y; w--z; z--s" )
         # A can be w, and then B and C are drawn from (x,y,z) so 9 possibilities
         # A can be y, then B=C=w
         # A can be s, then B=C=z
         # A can be x, then B=C=w
         # A can be z, then B and C are drawn from (s,w) so 4 possibliites
-        self.assertEqual( len( mList ), 16 )
 
-    # XFAIL: Identification condition check not done yet.
-    @unittest.expectedFailure
     def test_right_identification( self ):
-        l = parseGraphString( "A; B" )
-        self.assertFalse( nx.is_directed( l ) )
-        r = parseGraphString( "B--C" )
-        self.assertFalse( nx.is_directed( r ) )
-        g = parseGraphString( "x; y; z;" )
-        self.assertFalse( nx.is_directed( g ) )
-
-        finder = sg.MatchFinder( g, verbose=testVerbose )
-        finder.leftSide( l )
-        finder.rightSide( r )
-        mList = finder.matches()
-
-        if testVerbose:
-            for m in mList:
-                print( m )
+        mList = self.rightConditionTest( 6,
+                                         l = "A; B",
+                                         r = "B--C",
+                                         g = "x; y; z;" )
 
         # A and B should not map to the same node
         for m in mList:
             self.assertNotEqual( m.node('A'), m.node( 'B' ) )
 
+    def test_right_edge_identification( self ):
+        mList = self.rightConditionTest( 2,
+                                         l = "A--B--C",
+                                         r = "A; B--C",
+                                         g = "x--y--z" )
+
+        # A and C should not map to the same node
+        for m in mList:
+            self.assertNotEqual( m.node('A'), m.node( 'C' ) )
+
+        # This version should permit A=C (which lets B match x or z too.)
+        mList = self.rightConditionTest( 6,
+                                         l = "A--B--C",
+                                         r = "N1--A--B--C--N2",
+                                         g = "x--y--z" )
         
 if __name__ == '__main__':
     unittest.main()

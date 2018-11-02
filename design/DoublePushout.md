@@ -1,4 +1,4 @@
-# Ideas on semantics
+# Ideas on rewrite semantics
 
 Would like to permit deletions of nodes and edges, but is DPO (double pushout) really the right
 model?
@@ -23,7 +23,9 @@ So N_l != N_r . m, the diagram does not commute, so m is not a graph morphism.
 
 Do we care that this is the case?  Does it lead to ambiguity?
 
-## Merged edges
+To read: "Relabelling in Graph Transformation" Annegret Habel and Detlef Plump
+
+## Graphs vs. Multigraphs
 
 Consider the rule
 
@@ -46,53 +48,26 @@ W^X[1] == m
 Y^Z[2] == o
 ```
 
-Should the edge have label p or n?  Or is this matching not a morphism?
+We can't unambiguously reduce it to a single edge.  The "right" thing is to allow
+multigraphs; then the pushout is defined by preserving *both* edges.
 
-What is the single pushout here?
+But, multigraphs are harder to represent--- we'd need a way to numbering edges as well
+as tagging them.  And most of the time people probably wouldn't care?
 
-```
-p : Left - > Right
+## v0.1 decisions:
 
-p(A) = A^B   n(A) = 1  n(A^C) = 1
-p(B) = A^B   n(B) = 1
-p(C) = C^D   n(C) = 2  n(C^D) = 2
-p(D) = C^D   n(D) = 2
+I'll switch to injective mappings only (which should reduce the number of clauses a lot!)
 
-m : Left -> Graph
-
-m(A) = W    n(W) = 1
-m(B) = X    n(X) = 1
-m(C) = Y    n(Y) = 2
-m(D) = Z    n(Z) = 2
-```
-(or, P(C) and P(D) could be swapped, or P(C)=P(D).)
-
-Factorize p:L->R as
-
-```
-h : L->p(L)          surjective
-inc_p(L) : p(L)->R   injective
-p = inc_p(L) . h
-```
-
-What is the gluing relation on L induced by h?
-
-Well, A equiv^h B, and C equiv^h D (and the reflexive elements)
-
-What is the induced gluing relation on G, call it Rm
-
-x Rm y if m(x) equiv m(y)
-e1 Rm e2 if m(e1) equiv m(e2)
-
-So, no edges are related by the gluing relation?  That seems wrong.
+I'll stick with simple graphs (allowing self-loops) and document that when nodes are merged
+then the tag on the merged edge is unpredictable.  It will be the tag on one of the merged edges.
 
 
-i1(A^B) = i1(p(A)) = i2(m(A)) = i2(W)
-i1(A^B) = i1(p(B)) = i2(m(B)) = i2(X)
-i1(C^D) = i1(p(C)) = i2(m(B)) = i2(Y)
-i1(C^D) = i1(p(D)) = i2(m(B)) = i2(Z)
 
-To read: "Relabelling in Graph Transformation" Annegret Habel and Detlef Plump
+
+
+
+
+
 
 
 

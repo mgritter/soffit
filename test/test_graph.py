@@ -269,13 +269,7 @@ class TestMatchFinding(unittest.TestCase):
         lhs = nx.DiGraph()
         lhs.add_edge( 'X1', 'X2', tag='1' )
         lhs.add_edge( 'X2', 'X3', tag='4' )
-        lhs.add_edge( 'X3', 'X4', tag='x' )
-        lhs.add_edge( 'X4', 'X5', tag='2' )
-        lhs.add_edge( 'X5', 'X6', tag='5' )
-        lhs.add_edge( 'X6', 'X7', tag='x' )
-        lhs.add_edge( 'X7', 'X8', tag='3' )
-        lhs.add_edge( 'X8', 'X9', tag='6' )
-        lhs.add_edge( 'X9', 'XA', tag='x' )
+        lhs.add_edge( 'X3', 'X1', tag='x' )
         
         finder = sg.MatchFinder( g, verbose=testVerbose )
         finder.leftSide( lhs )
@@ -397,22 +391,15 @@ class TestMatchFinding(unittest.TestCase):
         )
         
     def test_right_dangling_edges( self ):
-        mList = self.rightConditionTest( 5,
+        mList = self.rightConditionTest( 2,
                                          l = "A--B; A--C",
                                          r = "B; C",
                                          g = "w--x; w--y; w--z; z--s" )
-        # s can be deleted (B=z, C=z)
+        # s cannot be deleted (B=z, C=z)
         # z can be deleted (B=s, C=w) or (B=w, C=s)
-        # y can be deleted (B=w, C=w)
-        # x can be deleted (B=w, C=w)
-        
-        for m in mList:
-            if m.node( 'A' ) == 's':
-                self.assertEqual( m.node( 'B' ), 'z' )
-                self.assertEqual( m.node( 'C' ), 'z' )
-            if m.node( 'A' ) in ['y', 'x']:
-                self.assertEqual( m.node( 'B' ), 'w' )
-                self.assertEqual( m.node( 'C' ), 'w' )
+        # y cannot be deleted (B=w, C=w)
+        # x cannot be deleted (B=w, C=w)
+
 
     def test_self_loop( self ):
         mList = self.rightConditionTest( 0,
@@ -420,11 +407,17 @@ class TestMatchFinding(unittest.TestCase):
                                          r = "A--B",
                                          g = "x--x; y--z1--z2" )
 
-        mList = self.rightConditionTest( 1,
+        mList = self.rightConditionTest( 0,
                                          l = "A--A--B",
                                          r = "A--A--B--C",
                                          g = "x--x" )
+        # impossible with injective mapping
         # A=>x, B=>x, A--A => x--x, A--B => x--x
+
+        mList = self.rightConditionTest( 1,
+                                         l = "A--A--B",
+                                         r = "A--A--B--C",
+                                         g = "x--x; y--x;" )
 
         mList = self.rightConditionTest( 0,
                                          l = "A--A--B",
@@ -432,15 +425,12 @@ class TestMatchFinding(unittest.TestCase):
                                          g = "x--y--z" )
 
     def test_right_no_dangling_edges( self ):
-        mList = self.rightConditionTest( 16,
+        mList = self.rightConditionTest( 8,
                                          l = "A--B; A--C",
                                          r = "A; B; C",
                                          g = "w--x; w--y; w--z; z--s" )
-        # A can be w, and then B and C are drawn from (x,y,z) so 9 possibilities
-        # A can be y, then B=C=w
-        # A can be s, then B=C=z
-        # A can be x, then B=C=w
-        # A can be z, then B and C are drawn from (s,w) so 4 possibliites
+        # A can be w, and then B and C are drawn from (x,y,z) 6 possibilities
+        # A can be z, then B and C are drawn from (s,w) so 2 possibliites
 
     def test_right_identification( self ):
         mList = self.rightConditionTest( 6,
@@ -462,21 +452,19 @@ class TestMatchFinding(unittest.TestCase):
         for m in mList:
             self.assertNotEqual( m.node('A'), m.node( 'C' ) )
 
-        # This version should permit A=C (which lets B match x or z too.)
-        mList = self.rightConditionTest( 6,
+        # This version is similar now that matches are injective.
+        mList = self.rightConditionTest( 2,
                                          l = "A--B--C",
                                          r = "N1--A--B--C--N2",
                                          g = "x--y--z" )
-
+        
     def test_merge_and_delete( self ):
         mList = self.rightConditionTest( 6,
                                          l = "A[target]; A--B; A--C; A--D",
                                          r = "B^C^D",
-                                         g = "y[target]; x--y--z" )
-        # B,C,D must map to x and z, but cannot be all x or all z
-        # (because then we can't delete y)
-        
-        mList = self.rightConditionTest( 7,
+                                         g = "y[target]; x--y--z; w--y" )
+
+        mList = self.rightConditionTest( 0,
                                          l = "A[target]; A--B; A--C; A--D",
                                          r = "B^C^D",
                                          g = "y[target]; w[target]; w--x--y--z" )

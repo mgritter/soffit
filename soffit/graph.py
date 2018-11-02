@@ -107,10 +107,9 @@ class MatchFinder(object):
         maxVertex = max( self.graph.nodes )
 
         # Build a variable for each vertex that must be matched.
-        # The convention is to allow non-injective matches, so
-        # two variables could match to the same vertex.
+        # We will use injective matching only, as it's more expessive and probably
+        # easier to understand.
         for n in leftGraph.nodes:
-            # FIXME: how permissive is this on what may be in a string?
             self.model.addVariable( n, range( 0, maxVertex + 1 ) )
 
             # Add a contraint to only assign to nodes with identical tag.
@@ -129,6 +128,8 @@ class MatchFinder(object):
             if len( matchingTag ) != len( self.graph.nodes ):
                 self.model.addConstraint( TupleConstraint( matchingTag ),
                                           [n] )
+
+        self.model.addConstraint( AllDifferentConstraint(), list( leftGraph.nodes ) )
 
         # Add an allowed assignment for each edge that must be matched,
         # again limiting to just exact matching tags.
@@ -206,10 +207,12 @@ class MatchFinder(object):
                 self.impossible = True
                 return
 
-        if nx.is_directed( self.graph ):
-            raise MatchError( "Directed graphs not yet supported." )
-        else:
-            self._identificationUndirected()
+        # Fossil code: keep to allow non-injective matching as an option?
+        #
+        #if nx.is_directed( self.graph ):
+        #    raise MatchError( "Directed graphs not yet supported." )
+        #else:
+        #    self._identificationUndirected()
             
 
     def _identificationUndirected( self ):

@@ -93,7 +93,7 @@ class TestGraphRewrite(unittest.TestCase):
     def test_merge_delete(self):
         self.perform_rewrite( l = "A[target]; A--B; A--C; A--D",
                               r = "B^C^D [star]",
-                              g = "X[target]; L--X--R" )
+                              g = "X[target]; L--X--R; X--Y" )
         g2 = self.after
         self.assertEqual( len( g2.nodes ), 1 )
         self.assertEqual( len( g2.edges ), 0 )

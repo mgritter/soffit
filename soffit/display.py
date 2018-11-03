@@ -104,7 +104,10 @@ def reposition( graph, xOffset, yOffset ):
 def colorElement( attr, color, name = ""):
     attr['color'] = color
     if 'tag' in attr:
-        attr['label'] = str( name ) + ":" + attr['tag']
+        if name == "":
+            attr['label'] = attr['tag']
+        else:
+            attr['label'] = str( name ) + ":" + attr['tag']
         del attr['tag']
     else:
         attr['label'] = str( name )

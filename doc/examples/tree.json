@@ -1,0 +1,8 @@
+{
+    "version" : "0.1",
+    "start" : "ROOT [color=maroon]",
+    "X [color=maroon]" : "X[color=maroon]; Y[color=brown]; X--Y",
+    "Y [color=brown]" : [ "Y [color=brown]; Z[color=green]; Y--Z",
+                          "Y [color=brown]; Z[color=brown]; Y--Z",
+                          "Y [color=forestgreen]; Z1[color=green]; Z2[color=green]; Y--Z1; Y--Z2;" ]
+}

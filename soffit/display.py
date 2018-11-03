@@ -72,7 +72,15 @@ def drawSvg( g, filename ):
     del toDraw.graph['join']
     del toDraw.graph['rename']
     aGraph = to_agraph( toDraw )
-    aGraph.draw( filename, prog='neato' )
+    aGraph.graph_attr['overlap'] = 'false'
+    aGraph.graph_attr['outputorder'] = 'edgesfirst'
+    aGraph.node_attr['style']='filled'
+    aGraph.node_attr['fillcolor']='white'
+    if len( g.nodes ) > 1000:
+        aGraph.draw( filename, prog='sfdp' )
+    else:
+        aGraph.draw( filename, prog='neato' )
+
     
 def reposition_pos( pos, yOffset, xOffset ):\
     return " ".join(

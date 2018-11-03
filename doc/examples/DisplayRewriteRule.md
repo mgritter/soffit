@@ -24,7 +24,8 @@ most 20 matches are plotted currently.
 
 ```python -m soffit.display --matches "A--B [x]" "A^B [merged]" "M--N--O [x]; X--M [a]; X-N [b]; X-O[c];" example-merge.svg```
 
-![{ A=>2, B=>0 }](example-merge.0.svg) 
+![{ A=>2, B=>0 }](example-merge.0.svg)
+
 ![{ A=>1, B=>0 }](example-merge.1.svg)
 
 + two copies with the matching of A and B interchanged.

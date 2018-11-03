@@ -1,0 +1,49 @@
+{
+    "version" : "0.1",
+    "start" : "X[#sentence#]",
+    "X[#sentence#]" : "X0[The]; X1[#0]; X2[color]; X3[#1]; X4[#0]; X5[animal]; X6[#1]; X7[of the]; X8[#0]; X9[natureNoun]; X10[#1]; X11[is called]; X12[#0]; X13[name]; X14[#1]; X0--X1--X2--X3--X4--X5--X6--X7--X8--X9--X10--X11--X12--X13--X14",
+    "A[#0]; T[color]; B[#1]; A--T--B" : [
+        "A^B^T[orange]",
+        "A^B^T[blue]",
+        "A^B^T[white]",
+        "A^B^T[black]",
+        "A^B^T[grey]",
+        "A^B^T[purple]",
+        "A^B^T[indigo]",
+        "A^B^T[turquoise]"
+    ],
+    "A[#0]; T[animal]; B[#1]; A--T--B" : [
+        "A^B^T[unicorn]",
+        "A^B^T[raven]",
+        "A^B^T[sparrow]",
+        "A^B^T[scorpion]",
+        "A^B^T[coyote]",
+        "A^B^T[eagle]",
+        "A^B^T[owl]",
+        "A^B^T[lizard]",
+        "A^B^T[zebra]",
+        "A^B^T[duck]",
+        "A^B^T[kitten]"
+    ],
+    "A[#0]; T[natureNoun]; B[#1]; A--T--B" : [
+        "A^B^T[ocean]",
+        "A^B^T[mountain]",
+        "A^B^T[forest]",
+        "A^B^T[cloud]",
+        "A^B^T[river]",
+        "A^B^T[tree]",
+        "A^B^T[sky]",
+        "A^B^T[sea]",
+        "A^B^T[desert]"
+    ],
+    "A[#0]; T[name]; B[#1]; A--T--B" : [
+        "A^B^T[Arjun]",
+        "A^B^T[Yuuma]",
+        "A^B^T[Darcy]",
+        "A^B^T[Mia]",
+        "A^B^T[Chiaki]",
+        "A^B^T[Izzi]",
+        "A^B^T[Azra]",
+        "A^B^T[Lina]"
+    ]
+}

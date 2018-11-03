@@ -143,9 +143,9 @@ def drawMatch( l, r, g, h, m, outputFile ):
     centerX = max( leftX, gX )
     centerY = max( gY, hY )
     # Lower left - Bring g up to the center line
-    reposition( g, gY - centerY, 0.0 )
+    reposition( g, centerY - gY, 0.0 )
     # Lower right
-    reposition( h, hY - centerY, centerX + 10 )
+    reposition( h, centerY - hY, centerX + 10 )
     # Upper left
     reposition( l, centerY + 10, 0.0 )
     # Upper right

@@ -173,6 +173,9 @@ class MatchFinder(object):
         (dn,de) = self.right.ruleDeletions( self.left  )
         self.deletedNodes = dn
         self.deletedEdges = de
+        if self.verbose:
+            print( "Deleted nodes:", dn )
+            print( "Deleted edges:", de )
         
         # "danging condition"
         # If a node is deleted, then any node with the same endpoint must
@@ -198,7 +201,8 @@ class MatchFinder(object):
                 # coveres deleted nodes n, though.
         
                 if nx.is_directed( self.graph ):
-                    raise MatchError( "Directed graphs not yet supported." )
+                    if self._danglingDirected( n, i ):
+                        possible = True
                 else:
                     if self._danglingUndirected( n, i ):
                         possible = True
@@ -269,11 +273,9 @@ class MatchFinder(object):
             self.model.addConstraint( NotInSetConstraint([i]), [n] )
             return False
 
-        # Are there no incident edges, and we didn't expect any?
-        if len( graphAdjacent ) == 0 and len( deletedAdjacentEdges ) == 0:
-            return True
-            
         # Another easy case: does i have a self-loop but N does not?
+        # FIXME: the previous case seems suspect, because self-loop is in
+        # graphAdjacent
         if i in graphAdjacent:
             if (n,n) not in self.deletedEdges:
                 # Then impossible to match.
@@ -282,6 +284,11 @@ class MatchFinder(object):
                 self.model.addConstraint( NotInSetConstraint([i]), [n] )
                 return False
 
+        # FIXME: write a test for ordering of these two conditions.
+        # Are there no incident edges, and we didn't expect any?
+        if len( graphAdjacent ) == 0 and len( deletedAdjacentEdges ) == 0:
+            return True
+            
         # We already covered the other direction-- i is already rejected
         # if the left graph has a self-loop for n, and i does not have a
         # self-loop.
@@ -294,12 +301,14 @@ class MatchFinder(object):
 
         neighborVars = [ t for (_,t) in deletedAdjacentEdges ]
 
+        # FIXME: is this redundant?
+        # I suspect it is because it returned "None" previously....
         if len( graphAdjacent ) > len( neighborVars ):
             # Can't be surjective
             if self.verbose:
                 print( "{} => {} is impossible, not surjective".format( n, i ) )
             self.model.addConstraint( NotInSetConstraint([i]), [n] )
-            return None
+            return False
 
         values = list( surjectiveMappings( len( neighborVars ),
                                            list( graphAdjacent ) ) )
@@ -316,6 +325,70 @@ class MatchFinder(object):
 
         self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
                                   [n] + neighborVars )
+        return True
+
+    def _danglingDirected( self, n, i ):
+        """Restrict matches of deleted node n to graph node i,
+        only to those which leave no undeleted edges dangling,
+        on a directed graph."""
+
+        # Could have a self-loop, let's treat it specially
+        deletedOutgoingEdges = [ (a,b) for (a,b) in self.deletedEdges if a == n and b != n ]
+        deletedIncomingEdges = [ (a,b) for (a,b) in self.deletedEdges if b == n and a != n ]
+        graphPred = list( x for x in self.graph.predecessors( i ) if x != i )
+        graphSucc = list( x for x in self.graph.successors( i ) if x != i )
+
+        # An easy case: does i have too many edges for the rule to delete
+        # them all?
+        if len( graphPred ) > len( deletedIncomingEdges ) or \
+           len( graphSucc ) > len( deletedOutgoingEdges ):
+            if self.verbose:
+                print( "{} => {} is impossible, too many neighbors".format( n, i ) )
+            self.model.addConstraint( NotInSetConstraint([i]), [n] )
+            return False
+
+        # Another easy case: does i have a self-loop but N does not?
+        if (i,i) in self.graph.edges():
+            if (n,n) not in self.deletedEdges:
+                # Then impossible to match.
+                if self.verbose:
+                    print( "{} => {} is impossible, no self-loop".format( n, i ) )
+                self.model.addConstraint( NotInSetConstraint([i]), [n] )
+                return False
+
+        # Match nodes surjectively from predecessors to incomingEdges
+        # and from successors to outgoingEdges
+        
+        succVars = [ t for (_,t) in deletedOutgoingEdges ]
+        predVars = [ t for (t,_) in deletedIncomingEdges ]
+
+        for ( neighborVars, graphAdjacent ) in \
+            [ ( succVars, graphSucc ),
+              ( predVars, graphPred ) ]:
+
+            if len( neighborVars ) == 0 and len( graphAdjacent ) == 0:
+                # Trivially satisfied
+                continue
+            
+            values = list( surjectiveMappings( len( neighborVars ),
+                                               graphAdjacent ) )
+            if len( values ) == 0:
+                if self.verbose:
+                    print( "{} => {} is impossible, not surjective".format( n, i ) )
+                self.model.addConstraint( NotInSetConstraint([i]), [n] )
+                return False
+                
+            if self.verbose:
+                print( "When {} = {}:".format( n, i ) )
+                print( " ".join( "{:>6}".format( str( x ) ) for x in neighborVars ) )
+                print( "|".join( "------" for x in neighborVars ) )
+                for v in values:
+                    print( " ".join( "{:6}".format( y ) for y in v ) )
+            print()
+
+            self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
+                                      [n] + neighborVars )
+            
         return True
 
     def _convertNodes( self, soln ):

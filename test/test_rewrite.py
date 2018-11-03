@@ -32,16 +32,33 @@ class TestGraphRewrite(unittest.TestCase):
             else:
                 print( "{};".format( n ) )
 
+        if nx.is_directed( g ):
+            arrow  = "->"
+        else:
+            arrow = "--"
+            
         for (a,b) in g.edges:
             if 'tag' in g.edges[a,b]:
-                print( "{} -- {} [{}];".format( a, b, g.edges[a,b]['tag'] ) )
+                print( "{} {} {} [{}];".format( a, arrow, b, g.edges[a,b]['tag'] ) )
             else:
-                print( "{} -- {};".format( a, b ) )
-                    
+                print( "{} {} {};".format( a, arrow, b ) )
+
+    def make_all_directed( self, l, r, g ):
+        if nx.is_directed( l ) or nx.is_directed( r ) or nx.is_directed( g ):
+            if not nx.is_directed( l ):
+                l = l.to_directed()
+            if not nx.is_directed( r ):
+                r = r.to_directed()
+            if not nx.is_directed( g ):
+                g = g.to_directed()
+        return (l, r, g)
+        
     def setup_rewrite( self, l, r, g, realMatches = True ):
         l = parseGraphString( l )
         r = parseGraphString( r, joinAllowed=True )
         g = sg.graphIdentifiersToNumbers( parseGraphString( g ) )
+        (l, r, g) = self.make_all_directed( l, r, g )
+        
         self.before = g
 
         if verbose:
@@ -50,6 +67,7 @@ class TestGraphRewrite(unittest.TestCase):
             self.dump_text( g )
         
         finder = sg.MatchFinder( g, verbose=False)
+        #finder = sg.MatchFinder( g, verbose=True)
         finder.leftSide( l )
         finder.rightSide( r )
         self.finder = finder
@@ -128,8 +146,7 @@ class TestGraphRewrite(unittest.TestCase):
         self.assertIn( (n_3,n_4), g2.edges )
 
     def test_two_merges(self):
-        # FIXME: the tag between A^B -- C^D is essentially arbitrary here,
-        # what does this look like as a pushout?
+        # The merged edge could get *either* tag, but it must get one.
         self.perform_rewrite( l = "A[1]; B[2]; C[3]; D[4];",
                               r = "A^B[12]; C^D[34]",
                               g = "W[1]; X[2]; Y[3]; Z[4]; X--Y[x]; Y--Z[y]; Z--W[z]; W--X[w]" )
@@ -137,8 +154,37 @@ class TestGraphRewrite(unittest.TestCase):
         ( n_12, n_34 ) = self.find_any_tags( g2, '12', '34' )
         self.assertIsNotNone( n_12 )
         self.assertIsNotNone( n_34 )
+        self.assertIn( (n_12, n_34), g2.edges )
+        self.assertIn( g2.edges[n_12,n_34]['tag'], ['x', 'z']  )
         
-                
+    def test_directed_delete(self):
+        self.perform_rewrite( l = "A->B; A[target]",
+                              r = "A [target]; B [other];",
+                              g = "X--Y; X[target]" )
+        g2 = self.after
+        ( n_t, n_o ) = self.find_any_tags( g2, 'target', 'other' )
+        self.assertIsNotNone( n_t )
+        self.assertIsNotNone( n_o )
+        self.assertNotIn( (n_t, n_o), g2.edges )
+        self.assertIn( (n_o, n_t), g2.edges )
+
+    def test_directed_tags(self):
+        self.perform_rewrite( l = "A->B [target];",
+                              r = "A[src]; B[dst];",
+                              g = "X->Y [target]; Y->X [not];" )
+        g2 = self.after
+        self.assertEqual( len( g2.edges ), 1 )
+        (s,t) = next( iter( g2.edges ) )
+        self.assertEqual( g2.edges[s,t]['tag'], 'not' )
+
+    def test_directed_creation(self):
+        self.perform_rewrite( l = "A->B->D; A->C->D",
+                              r = "A->B->D; A->C->D; A[src]; D[dst]; A->D [new]",
+                              g = "m->n; n->o; p->o; m->p" )
+        g2 = self.after
+        self.assertEqual( len( g2.edges ), 5 )
+        ( n_s, n_d ) = self.find_any_tags( g2, 'src', 'dst' )
+        self.assertEqual( g2.edges[n_s,n_d]['tag'], 'new' )
 
 if __name__ == '__main__':
     unittest.main()

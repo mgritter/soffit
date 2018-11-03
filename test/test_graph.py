@@ -133,6 +133,93 @@ class TestGraphModification(unittest.TestCase):
         self.assertIn( ('A','A'), de )
         self.assertEqual( len(de), 1 )
 
+    def test_deleted_edges_directed( self ):
+        l = nx.DiGraph()
+        l.add_edge( 'A', 'B', tag='1' )
+        l.add_edge( 'C', 'B', tag='2' )
+        l.add_edge( 'C', 'D', tag='3' )
+        l.add_edge( 'B', 'E', tag='4' )
+        l.add_edge( 'B', 'F', tag='5' )
+        
+        r = nx.DiGraph()
+        # C and A got merged, so did the edges A->B and C->B
+        # C->D got deleted but D did not
+        # B->E got deleted along with E
+        # B->F is not deleted
+        r.graph['join'] = { 'C' : 'A' }        
+        r.add_edge( 'A', 'B', tag='1' )
+        r.add_node( 'D' )
+        r.add_edge( 'B', 'F', tag='5' )
+        self._buildRename( r )
+        
+        rh = sg.RightHandGraph( r )
+        (dn, de) = rh.ruleDeletions( l )
+        if testVerbose:
+            print()
+            print( "Deleted nodes:", dn )
+            print( "Deleted edgess:", de )
+        self.assertEqual( len( dn ), 1 )
+        self.assertEqual( len( de ), 2 )
+        self.assertIn( 'E', dn )
+        self.assertIn( ('C','D'), de )
+        self.assertIn( ('B','E'), de )
+        self.assertNotIn( ('B','F'), de )
+        self.assertNotIn( ('F','B'), de )
+
+
+    def test_directed_no_deleted_edges( self ):
+        l = nx.DiGraph()
+        l.add_edge( 'A', 'B' )
+        l.add_edge( 'B', 'D' )
+        l.add_edge( 'A', 'C' )
+        l.add_edge( 'C', 'D' )
+        
+        r = nx.DiGraph()
+        r.add_edge( 'A', 'B' )
+        r.add_edge( 'B', 'D' )
+        r.add_edge( 'A', 'C' )
+        r.add_edge( 'C', 'D' )
+        r.add_edge( 'A', 'D' )
+        r.graph['join'] = {}
+        self._buildRename( r )
+        
+        rh = sg.RightHandGraph( r )
+        (dn, de) = rh.ruleDeletions( l )
+        if testVerbose:
+            print()
+            print( "Deleted nodes:", dn )
+            print( "Deleted edgess:", de )
+
+        self.assertEqual( len( dn ), 0 )
+        self.assertEqual( len( de ), 0 )
+
+    def test_deleted_edges_directed_self( self ):
+        l = nx.DiGraph()
+        l.add_edge( 'A', 'A', tag='1' )
+        l.add_edge( 'A', 'B', tag='2' )
+        l.add_edge( 'B', 'A', tag='3' )
+        l.add_edge( 'C', 'A', tag='4' )
+        l.add_edge( 'A', 'D', tag='5' )
+
+        r = nx.Graph( join={} )
+        r.add_node( 'A' )
+        r.add_node( 'B' )
+        self._buildRename( r )
+
+        rh = sg.RightHandGraph( r )
+        (dn, de) = rh.ruleDeletions( l )
+        if testVerbose:
+            print()
+            print( "Deleted nodes:", dn )
+            print( "Deleted edgess:", de )
+        self.assertEqual( len( dn ), 2 )
+        self.assertEqual( len( de ), 5 )
+        self.assertIn( ('A', 'A'), de )
+        self.assertIn( ('A', 'B'), de )
+        self.assertIn( ('B', 'A'), de )
+        self.assertIn( ('C', 'A'), de )
+        self.assertIn( ('A', 'D'), de )
+                
 class TestSurjectiveMappings(unittest.TestCase):
     def test_simple( self ):
         foo = list( sg.surjectiveMappings( 1, ['a'] ) )
@@ -254,6 +341,27 @@ class TestMatchFinding(unittest.TestCase):
         foundEdges = set( m.edge( ( 'X', 'Y' ) ) for m in mList )
         self.assertEqual( edges, foundEdges )
 
+    def test_lhs_match_directededge( self ):
+        g = nx.DiGraph()
+        g.add_edge( 'A', 'B', tag='x' )
+        g.add_edge( 'B', 'C', tag='x' )
+
+        lhs = nx.DiGraph()
+        lhs.add_edge( 'X', 'Y', tag='x' )
+        
+        finder = sg.MatchFinder( g, verbose=testVerbose )
+        finder.leftSide( lhs )
+        self.assertFalse( finder.impossible )
+
+        mList = finder.matches()
+        if testVerbose:
+            print( mList )
+        self.assertEqual( len( mList ), 2 )
+        edges = set( [ ('A', 'B'),
+                       ('B', 'C' ) ] )
+        foundEdges = set( m.edge( ( 'X', 'Y' ) ) for m in mList )
+        self.assertEqual( edges, foundEdges )
+
     def test_complicated_directed_single_path( self ):
         g = nx.DiGraph()
         g.add_edge( 'A', 'B', tag='1' )
@@ -366,11 +474,15 @@ class TestMatchFinding(unittest.TestCase):
         l = parseGraphString( l )
         r = parseGraphString( r, joinAllowed=True )
         g = parseGraphString( g )
-        
-        self.assertFalse( nx.is_directed( l ) )
-        self.assertFalse( nx.is_directed( r ) )
-        self.assertFalse( nx.is_directed( g ) )
 
+        if nx.is_directed( l ) or nx.is_directed( r ) or nx.is_directed( g ):
+            if not nx.is_directed( l ):
+                l = l.to_directed()
+            if not nx.is_directed( r ):
+                r = r.to_directed()
+            if not nx.is_directed( g ):
+                g = g.to_directed()
+            
         finder = sg.MatchFinder( g, verbose=testVerbose )
         finder.leftSide( l )
         finder.rightSide( r )
@@ -424,6 +536,22 @@ class TestMatchFinding(unittest.TestCase):
                                          r = "A--B--C",
                                          g = "x--y--z" )
 
+    def test_self_loop_directed( self ):
+        mList = self.rightConditionTest( 0,
+                                         l = "A--A->B",
+                                         r = "A->B",
+                                         g = "x--x; y--z1--z2" )
+
+        mList = self.rightConditionTest( 1,
+                                         l = "A--A->B",
+                                         r = "A--A->B->C",
+                                         g = "x--x; y--x;" )
+
+        mList = self.rightConditionTest( 0,
+                                         l = "A--A->B",
+                                         r = "A->B->C",
+                                         g = "x--y--z" )
+
     def test_right_no_dangling_edges( self ):
         mList = self.rightConditionTest( 8,
                                          l = "A--B; A--C",
@@ -468,6 +596,31 @@ class TestMatchFinding(unittest.TestCase):
                                          l = "A[target]; A--B; A--C; A--D",
                                          r = "B^C^D",
                                          g = "y[target]; w[target]; w--x--y--z" )
+
         
+    def test_right_dangling_directed( self ):
+        # Rule doesn't delete edge outgoing from B
+        mList = self.rightConditionTest( 0,
+                                         l = "A[target]; A->B",
+                                         r = "A",
+                                         g = "y[target]; y--w" )
+
+        # Rule doesn't delete edge incoming to B
+        mList = self.rightConditionTest( 0 ,
+                                         l = "A[target]; A->B",
+                                         r = "A",
+                                         g = "y[target]; y->w<-x" )
+
+        # Rule doesn't delete edge outgoing from  B
+        mList = self.rightConditionTest( 0 ,
+                                         l = "A[target]; A->B",
+                                         r = "A",
+                                         g = "y[target]; y->w->X" )
+
+        mList = self.rightConditionTest( 2,
+                                         l = "A[target]; A->B",
+                                         r = "A",
+                                         g = "y[target]; y->w; y->x" )
+
 if __name__ == '__main__':
     unittest.main()

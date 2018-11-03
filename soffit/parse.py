@@ -344,6 +344,8 @@ class WorkingGraph(object):
         if self.undirected:
             self.undirected = False
             self.graph = self.graph.to_directed()
+            # This breaks the connection betwen graph['rename'] and self.rename
+            self.graph.graph['rename'] = self.rename
 
         if tag is None:
             self.graph.add_edge( a, b )

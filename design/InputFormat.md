@@ -181,3 +181,14 @@ Write rename rules on the *left* instead of the right?
 }
 ```
 
+## "As-is" rules
+
+In many cases we just want to add or modify a small portion of the left
+graph.  Could we add a way to represent this compactly?
+
+```
+   "A--B [h]; B--C [v]; A[color=white]; B[e]; C[x]" : "$left; N[color=white]; B[x]; ...""
+   ... : "{$left}; ..."
+   ... : "
+
+```

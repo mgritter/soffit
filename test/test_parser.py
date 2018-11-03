@@ -339,6 +339,31 @@ class TestGraphParsing(unittest.TestCase):
         self.assertEqual( g.graph['rename']['E'], n0 )
         self.assertEqual( g.graph['rename']['F'], n0 )
         self.assertEqual( g.graph['rename']['G'], n0 )
+
+    def test_directed_unequal_tags( self ):
+        g = parseGraphString( "A->B [left]; A<-B [right]" )
+        self.assertEqual( len( g.nodes ), 2 )
+        self.assertEqual( len( g.edges ), 2 )
+        self.assertEqual( g.edges['A','B']['tag'], 'left' )
+        self.assertEqual( g.edges['B','A']['tag'], 'right' )
+
+    def test_implicit_name( self ):
+        g = parseGraphString( "A--D; B--C",
+                              joinAllowed=True )
+        self.assertEqual( g.graph['rename']['A'], 'A' )
+        self.assertEqual( g.graph['rename']['B'], 'B' )
+        self.assertEqual( g.graph['rename']['C'], 'C' )
+        self.assertEqual( g.graph['rename']['D'], 'D' )
+
+    def test_directed_square( self ):
+        g = parseGraphString( "A->B->D; A->C->D; A[src]; D[dst]; A->D [new]",
+                              joinAllowed=True )
+        self.assertEqual( len( g.nodes ), 4 )
+        self.assertEqual( len( g.edges ), 5 )
+        self.assertEqual( g.graph['rename']['A'], 'A' )
+        self.assertEqual( g.graph['rename']['B'], 'B' )
+        self.assertEqual( g.graph['rename']['C'], 'C' )
+        self.assertEqual( g.graph['rename']['D'], 'D' )
         
     def test_merge_unequal_tgs( self ):        
         with self.assertRaises( ParseError ):

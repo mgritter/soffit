@@ -29,7 +29,7 @@ class DeterministicRule(object):
         return self.left
     
     def rightSide( self ):
-        return self.right
+        return [ self.right ]
     
 class RandomRule(object):
     def __init__( self, left, rightChoices ):
@@ -40,7 +40,7 @@ class RandomRule(object):
         return self.left
 
     def rightSide( self ):
-        return random.choice( self.rightChoices )
+        return random.sample( self.rightChoices, len( self.rightChoices ) )
         
 class GraphGrammar(object):
     def __init__( self ):

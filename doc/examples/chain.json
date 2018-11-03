@@ -1,0 +1,5 @@
+{ "version" : "0.1",
+  "start" : "A [init];",
+  "X [init]" : "X [head]; Y [tail]; X--Y",
+  "X [tail]" : "X; Y[tail]; X--Y"
+}

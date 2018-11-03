@@ -72,8 +72,35 @@ def drawSvg( g, filename ):
     del toDraw.graph['join']
     del toDraw.graph['rename']
     aGraph = to_agraph( toDraw )
-    aGraph.draw( filename, prog='dot' )
+    aGraph.draw( filename, prog='neato' )
+    
+def reposition_pos( pos, yOffset, xOffset ):\
+    return " ".join(
+        ",".join( [ str( float( y ) + yOffset ),
+                    str( float( x ) + xOffset ) ] )
+        for coord in pos.split( " " )
+        for (y,x) in [ coord.split( "," ) ]
+    )
 
+def position( graph ):
+    """Render a graph with 'neato', and return its bounding box."""
+    agraph = to_agraph( graph )
+    agraph.layout( prog='neato' )
+    for n in graph.nodes:
+        graph.nodes[ n ]['pos'] = agraph.get_node( n ).attr['pos']
+    for (s,t) in graph.edges:
+        graph.edges[s,t]['pos'] = agraph.get_edge( s, t ).attr['pos']
+    return [ float(i) for i in agraph.graph_attr['bb'].split( ',' ) ]
+
+def reposition( graph, xOffset, yOffset ):
+    """Update all pos attributes to a different location."""
+    for n in graph.nodes:
+        graph.nodes[ n ]['pos'] = reposition_pos( graph.nodes[n]['pos'],
+                                                  yOffset, xOffset )
+    for (s,t) in graph.edges:
+        graph.edges[s,t]['pos'] = reposition_pos( graph.edges[s,t]['pos'],
+                                                  yOffset, xOffset )
+        
 def colorElement( attr, color, name = ""):
     attr['color'] = color
     if 'tag' in attr:
@@ -102,6 +129,24 @@ def drawMatch( l, r, g, h, m, outputFile ):
         g.nodes[m.node(n)]['color'] = 'purple'
     for e in l.edges:
         g.edges[m.edge(e)]['color'] = 'purple'
+
+    (_, _, leftX, leftY) = position( l )
+    (_, _, gX, gY) = position( g )
+    # FIXME: initialize r with l's positions
+    (_, _, rightX, rightY) = position( r )
+    # FIXME: initialize h with g's positions
+    (_, _, hX, hY) = position( h )
+
+    centerX = max( leftX, gX )
+    centerY = max( gY, hY )
+    # Lower left - Bring g up to the center line
+    reposition( g, gY - centerY, 0.0 )
+    # Lower right
+    reposition( h, hY - centerY, centerX + 10 )
+    # Upper left
+    reposition( l, centerY + 10, 0.0 )
+    # Upper right
+    reposition( r, centerY + 10, centerX + 10 )
     
     collection = nx.disjoint_union( l, r )
     collection = nx.disjoint_union( collection, g )
@@ -116,13 +161,34 @@ def drawMatch( l, r, g, h, m, outputFile ):
     hNums = range( y, y + len( h.nodes ) )
     
     agraph = to_agraph( collection )
-    agraph.graph_attr['rankdir']='LR'
-    agraph.add_subgraph( lNums, "cluster_L", label="L", pos="10,10" )
+
+    dot = False
+    if dot:
+        # Add invisible nodes and edges to try to line up the clusters.
+        agraph.add_node( "rank0", style="invis" )
+        agraph.add_node( "rankL", style="invis" )
+        agraph.add_node( "rankR", style="invis" )
+        agraph.add_edge( "rank0", "rankL", style="invis" )
+        agraph.add_edge( "rank0", "rankR", style="invis" )
+        agraph.add_node( "rankG", style="invis" )
+        agraph.add_node( "rankH", style="invis" )
+        agraph.add_edge( "rankL", "rankG", style="invis" )
+        agraph.add_edge( "rankR", "rankH", style="invis" )
+        for g in gNums:
+            agraph.add_edge( "rankL", g, style="invis" )
+        for h in hNums:
+            agraph.add_edge( "rankR", h, style="invis" )
+        lNums = list( lNums ) + ["rankL"]
+        rNums = list( rNums ) + ["rankR"]
+        gNums = list( gNums ) + ["rankG"]
+        hNums = list( hNums ) + ["rankH"]
+            
+    agraph.add_subgraph( lNums, "cluster_L", label="L" )
     agraph.add_subgraph( rNums, "cluster_R", label="R" )
     agraph.add_subgraph( gNums, "cluster_G", label="G" )
     agraph.add_subgraph( hNums, "cluster_H", label="H" )
     agraph.write( "debug.gv" )
-    agraph.draw( outputFile, prog='neato' )
+    agraph.draw( outputFile, prog="neato", args="-n" )
     
 def showMatches( l, r, g, outputFile ):
     try:

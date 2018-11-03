@@ -187,7 +187,7 @@ def drawMatch( l, r, g, h, m, outputFile ):
     agraph.add_subgraph( rNums, "cluster_R", label="R" )
     agraph.add_subgraph( gNums, "cluster_G", label="G" )
     agraph.add_subgraph( hNums, "cluster_H", label="H" )
-    agraph.write( "debug.gv" )
+    # agraph.write( "debug.gv" )
     agraph.draw( outputFile, prog="neato", args="-n" )
     
 def showMatches( l, r, g, outputFile ):

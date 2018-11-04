@@ -221,7 +221,7 @@ class MismatchedVertexError(MismatchedTagError):
 class MismatchedEdgeError(MismatchedTagError):
     def __init__( self, src, dst, newTag, oldTag ):        
         self.src = src;
-        self.dest = dst;
+        self.dst = dst;
         self.newTag = newTag
         self.oldTag = oldTag
 

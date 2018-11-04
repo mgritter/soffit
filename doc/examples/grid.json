@@ -1,0 +1,44 @@
+{
+    "version" : "0.1",
+    "start" : "X->Y->Z [h]; X2->Y2->Z2 [h]; X->X2 [v]; Y->Y2[v]; Z->Z2[v]; X[c]; Y[c]; Z[up]; X2[c]; Y2[e]; Z2[c]",
+
+    "C->M [h]; C[c]; M[up];" :
+    "C->M [h]; C[e]; M[e]; A[left]; B[c]; A->B [h]; A->C[v]; B->M[v];",
+    
+    "M->R [v]; L->R [h]; L[e]; R[e]; M[left];" :
+    "M->R [v]; L->R [h]; L[e]; R[i]; M[e]; N[left]; N->M[h]; N->L[v];",
+
+    "M->R [v]; L->R [h]; L[c]; R[e]; M[left];" :
+    "M->R [v]; L->R [h]; L[c]; R[i]; M[e]; N[left]; N->M[h]; N->L[v];",
+
+    "M->C [v]; C[c]; M[left];" :
+    "M->C [v]; C[e]; M[e]; A[c]; B[down]; A->M[h]; A->B[v]; B->C[h];",
+
+    "M->T [h]; T->B [v]; T[e]; B[e]; M[down];" :
+    "M->T [h]; T->B [v]; T[i]; B[e]; M[e]; N[down]; M->N[v]; N->B[h];",
+    
+    "M->T [h]; T->B [v]; T[e]; B[c]; M[down];" :
+    "M->T [h]; T->B [v]; T[i]; B[c]; M[e]; N[down]; M->N[v]; N->B[h];",
+
+    "M->C [h]; C[c]; M[down];" :
+    "M->C [h]; C[e]; M[e]; A[c]; B[right]; M->A[v]; A->B[h]; C->B[v];",
+
+    "M<-L [v]; L->R [h]; L[e]; R[e]; M[right];" :
+    "M<-L [v]; L->R [h]; L[i]; R[e]; M[e]; N[right]; M->N[h]; R->N[v];",
+
+    "M<-L [v]; L->R [h]; L[e]; R[c]; M[right];" :
+    "M<-L [v]; L->R [h]; L[i]; R[c]; M[e]; N[right]; M->N[h]; R->N[v];",
+
+    "C->M [v]; C[c]; M[right];" :
+    "C->M [v]; C[e]; M[e]; A[up]; B[c]; M->B[h]; C->A[h]; A->B[v];",
+    
+    "B->M [h]; T->B [v]; T[e]; B[e]; M[up];" :
+    "B->M [h]; T->B [v]; T[e]; B[i]; M[e]; N[up]; T->N[h]; N->M[v];",
+
+    "B->M [h]; T->B [v]; T[c]; B[e]; M[up];" :
+    "B->M [h]; T->B [v]; T[c]; B[i]; M[e]; N[up]; T->N[h]; N->M[v];"
+
+
+}
+
+    

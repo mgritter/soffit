@@ -22,11 +22,22 @@ from soffit.graph import MatchFinder, RuleApplication, graphIdentifiersToNumbers
 import soffit.parse as parse
 import soffit.display as display
 import random
+from functools import reduce
 
 class NoMatchException(Exception):
     def __init__( self ):
         self.message = "No match found in graph."
 
+def makeAllDirected( *graphs ):
+    """If any one of the input graphs is directed, make directed versions of all
+    of the inputs and return them.  Otherwise, return the input unchanged."""
+    someDirected = reduce( lambda x, y: x or y, map( nx.is_directed, graphs ) )
+    if someDirected:
+        return [ ( g.to_directed() if (not nx.is_directed( g )) else g )
+                 for g in graphs ]
+    else:
+        return graphs
+    
 def chooseAndApply( grammar, graph ):
     nRules = len( grammar.rules )
     # This is a little wasteful but simpler than removing rules
@@ -36,6 +47,11 @@ def chooseAndApply( grammar, graph ):
     for r in ruleAttemptOrder:
         left = r.leftSide()
         for right in r.rightSide():
+
+            # Covert to directed on-demand
+            # FIXME: do it ahead of time if any directed graphs exist in the rule set?
+            (left, right, graph) = makeAllDirected( left, right, graph )
+            
             finder = MatchFinder( graph )
             finder.leftSide( left )
             finder.rightSide( right )

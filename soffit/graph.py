@@ -384,7 +384,7 @@ class MatchFinder(object):
                 print( "|".join( "------" for x in neighborVars ) )
                 for v in values:
                     print( " ".join( "{:6}".format( y ) for y in v ) )
-            print()
+                print()
 
             self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
                                       [n] + neighborVars )

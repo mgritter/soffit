@@ -192,3 +192,25 @@ graph.  Could we add a way to represent this compactly?
    ... : "
 
 ```
+
+## JSON is bulls**t
+
+OK, since this isn't Javascript, the format is just a pain with no gain:
+  * No comments
+  * No multi-line strings
+
+Switch to something where I parse the whole file?
+
+## Metarules
+
+Often I want "the same rule for these four pairs of tags".  Wildcards on tags would help some but
+I don't really want to add partial matching for tags.  However, we could add a looping construct that
+created rules.
+
+```
+   "A--B [$a]; C--D [$b]" : { "$a" : [ "x", "y", "z" ],
+                              "$b" : [ "x2", "y2", "z2" ],
+                              "right" : "A^B [$a]; C^D [$b]" }
+```
+
+But, it we got away from JSON there would probably be more natural ways to express it

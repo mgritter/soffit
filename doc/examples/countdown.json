@@ -1,0 +1,8 @@
+{
+    "version" : "0.1",
+    "start" : "X[root]; N1[node]; N2[node]; X--N1; X--N2; Y0[fuse]; Y0--Y1--Y2--Y3--Y4--Y5--Y6--Y7--Y8--Y9--Y10; Y10[end]",
+    "F[fuse]; E[end]; F--E" : "Z [style=invis]",
+    "R[node]; Y[fuse]; Y--Y2" : "R--I1; R--I2; R[label=]; I1[node]; I2[node]; Y2[fuse];",
+    "R[node]; Z[style=invis];" : "R[leaf]; Z[style=invis]"
+}
+    

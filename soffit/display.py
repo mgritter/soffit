@@ -19,7 +19,7 @@
 
 import networkx as nx
 import matplotlib.pyplot as plt
-from soffit.parse import parseGraphString, ParseError
+from soffit.parse import parseGraphString, ParseError, loadGraphGrammar
 from soffit.graph import MatchFinder, RuleApplication, graphIdentifiersToNumbers
 from networkx.drawing.nx_agraph import to_agraph
 
@@ -234,15 +234,127 @@ def showGraph( graphString, outputFile ):
         exit( 1 )
 
     drawSvg( g, outputFile )
+
+svgXmlHeader = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">"""
+
+def removeHeader( svg ):
+    try:
+        i = svg.index( svgXmlHeader )
+        return svg[:i] + svg[i+len( svgXmlHeader ):]
+    except ValueError:
+        return svg
+
+def appendTag( g1 ):
+    for n in g1:
+        if 'tag' in g1.nodes[n]:
+            g1.nodes[n]['label'] = str( n ) + ":" + g1.nodes[n]['tag']
+    for e in g1.edges:
+        if 'tag' in g1.edges[e]:
+            g1.edges[e]['label'] = ":" + g1.edges[e]['tag']
+    return g1
+
+def getSvgForGraphPair( before, after ):
+    g1 = before.copy()
+    g2 = after.copy()
+
+    appendTag( g1 )
+    appendTag( g2 )
+
+    for n in g1:
+        if n not in g2:
+            g1.nodes[n]['color'] = 'red'
+
+    for e in g1.edges:
+        if e not in g2.edges:
+            g1.edges[e]['color'] = 'red'
+
+    for n in g2:
+        if n not in g1:
+            g2.nodes[n]['color'] = 'green'
+
+    for e in g2.edges:
+        if e not in g1.edges:
+            g2.edges[e]['color'] = 'green'
+
+    for n in g2:
+        if 'tag' in g2.nodes[n] and n in g1:
+            if g1.nodes[n].get( 'tag', None ) != g2.nodes[n].get( 'tag' ):
+                g2.nodes[n]['fontcolor'] = 'red'
+
+    (_,_,x1,y1) = position( g1 )
+
+    for n in g1.nodes:
+        if n in g2.nodes:
+            g2.nodes[n]['pos'] = g1.nodes[n]['pos']
+
+    (_,_,x2,y2) = position( g2 )
+
+    # Graphviz uses 96 DPI by default
+    desiredX = max( x1, x2 ) / 96.0
+    desiredY = max( y1, y2 ) / 96.0
+
+    sizeAttr = "{},{}!".format( desiredX, desiredY )
+
+    ag1 = to_agraph( g1 )
+    ag1.graph_attr['size'] = sizeAttr
+    s1 = ag1.draw( format="svg", prog="neato" )
+    
+    ag2 = to_agraph( g2 )
+    ag2.graph_attr['size'] = sizeAttr
+    s2 = ag2.draw( format="svg", prog="neato" )
+    
+    return ( s1.decode("utf-8"), s2.decode("utf-8") )
+
+htmlHeader = """<html>
+<head>
+</head>
+<body>
+<div style="display: grid; grid-template-columns: auto auto; grid-column-gap:50px; ">
+"""
+
+htmlFooter = """
+</div></body></html>
+"""
+
+divFormat = """
+<div>
+{0}
+</div>
+<div>
+{1}
+</div>
+<div style="grid-column: 1 /span 2;border-bottom: 4px solid gray;">
+</div>
+"""
+
+def drawGrammar( ruleFilename, outputFilename ):
+    try:
+        with open( ruleFilename, "r" ) as inFile:
+            grammar = loadGraphGrammar( inFile )
+    except ParseError as pe:
+        pe.prettyPrint()
+        exit( 1 )
+
+    with open( outputFilename, "w" ) as outFile:
+        outFile.write( htmlHeader )
+        for (l, r) in grammar.rulesIter():
+            (sl, sr) = getSvgForGraphPair( l, r )
+            outFile.write( divFormat.format( removeHeader( sl ),
+                                             removeHeader( sr ) ) )
+        outFile.write( htmlFooter )
     
 def usage():
     print( "python -m soffit.display <string>" )
-    print( "  Parse graph and output as test.png." )
+    print( "  Parse graph and output as test.svg." )
     print( "python -m soffit.display <string> <filename>" )
     print( "  Parse graph and output as <filename>." )
     print( "python -m soffit.display --matches <l> <r> <g> <filename>" )
     print( "  Parse rule l=>r and show its application to g in <filename>." )
     print( "  If multiple matches, <filename> will have a number inserted." )               
+    print( "python -m soffit.display --grammar <rule.json> <outputfile>" )
+    print( "  Parse a graph grammar and display it as an HTML page with embedded SVG images." )
     exit( 0 )
 
 if __name__ == "__main__":
@@ -259,6 +371,8 @@ if __name__ == "__main__":
         if len( sys.argv ) == 6:
             outputFile = sys.argv[5]
         showMatches( sys.argv[2], sys.argv[3], sys.argv[4], outputFile )
+    elif sys.argv[1] == "--grammar":
+        drawGrammar( sys.argv[2], sys.argv[3] )
     else:
         usage()
             

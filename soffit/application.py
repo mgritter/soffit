@@ -71,7 +71,14 @@ def chooseAndApply( grammar, graph ):
         
 def applyRuleset( rulesetFilename, 
                   outputFile,
-                  maxIterations = 100 ):
+                  maxIterations = 100,
+                  callback = None ):
+    """Apply the graph grammar found in rulesetFilename, up to maxItertions times.
+    Write the final SVG to outputFile.
+    The callback function is called with (iteration, graph) at each step."""
+
+    # FIXME: split the load and iteration loop into separate functions.
+    
     print( "Loading grammar from", rulesetFilename )
     # FIXME: catch file not found error
     with open( rulesetFilename, "r" ) as f:
@@ -83,12 +90,17 @@ def applyRuleset( rulesetFilename,
             
     g = graphIdentifiersToNumbers( grammar.start )
 
+    if callback is not None:
+        callback( 0, g )
+    
     iteration = 1
     try:
         while iteration <= maxIterations:
             g = chooseAndApply( grammar, g )
             print( "Iteration {}: graph size {}".format( iteration,
                                                          len( g.nodes ) ) )
+            if callback is not None:
+                callback( iteration, g )
             iteration += 1
         print( "Stopping expansion after {} iterations".format( iteration - 1 ) )
     except NoMatchException:

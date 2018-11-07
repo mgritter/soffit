@@ -21,6 +21,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from soffit.parse import parseGraphString, ParseError, loadGraphGrammar
 from soffit.graph import MatchFinder, RuleApplication, graphIdentifiersToNumbers
+import soffit.application
 from networkx.drawing.nx_agraph import to_agraph
 
 def convertTagToLabel( attr ):
@@ -255,41 +256,56 @@ def appendTag( g1 ):
             g1.edges[e]['label'] = ":" + g1.edges[e]['tag']
     return g1
 
-def getSvgForGraphPair( before, after ):
+def transferPositions( g1, g2 ):
+    for n in g1.nodes:
+        if n in g2.nodes:
+            g2.nodes[n]['pos'] = g1.nodes[n]['pos']
+    
+                      
+def getSvgForGraphPair( before, after, leftToRight=False ):
     g1 = before.copy()
     g2 = after.copy()
 
     appendTag( g1 )
     appendTag( g2 )
 
-    for n in g1:
-        if n not in g2:
-            g1.nodes[n]['color'] = 'red'
-
-    for e in g1.edges:
-        if e not in g2.edges:
-            g1.edges[e]['color'] = 'red'
-
-    for n in g2:
-        if n not in g1:
-            g2.nodes[n]['color'] = 'green'
-
-    for e in g2.edges:
-        if e not in g1.edges:
-            g2.edges[e]['color'] = 'green'
-
     for n in g2:
         if 'tag' in g2.nodes[n] and n in g1:
             if g1.nodes[n].get( 'tag', None ) != g2.nodes[n].get( 'tag' ):
                 g2.nodes[n]['fontcolor'] = 'red'
 
-    (_,_,x1,y1) = position( g1 )
+    edgesDeleted = [ e for e in g1.edges if e not in g2.edges ] 
+    nodesDeleted = [ n for n in g1.nodes if n not in g2.nodes ]     
+    edgesAdded = [ e for e in g2.edges if e not in g1.edges ] 
+    nodesAdded = [ n for n in g2.nodes if n not in g1.nodes ]
 
-    for n in g1.nodes:
-        if n in g2.nodes:
-            g2.nodes[n]['pos'] = g1.nodes[n]['pos']
+    for n in nodesDeleted:
+        g1.nodes[n]['color'] = 'red'
+        g1.nodes[n]['fontcolor'] = 'red'
+        g2.add_node( n, color="white", label="" )
+    for n in nodesAdded:
+        g2.nodes[n]['color'] = 'green'
+        g2.nodes[n]['fontcolor'] = 'green'
+        g1.add_node( n, color="white", label="" )
 
-    (_,_,x2,y2) = position( g2 )
+    for (s,t) in edgesDeleted:
+        g1.edges[s,t]['color'] = 'red'
+        g1.edges[s,t]['fontcolor'] = 'red'
+        g2.add_edge( s, t, color="white" )
+
+    for (s,t) in edgesAdded:
+        g2.edges[s,t]['color'] = 'green'
+        g2.edges[s,t]['fontcolor'] = 'green'
+        g1.add_edge( s, t, color="white" )
+
+    if leftToRight:
+        (_,_,x1,y1) = position( g1 )
+        transferPositions( g1, g2 )
+        (_,_,x2,y2) = position( g2 )
+    else:
+        (_,_,x2,y2) = position( g2 )
+        transferPositions( g2, g1 )
+        (_,_,x1,y1) = position( g1 )
 
     # Graphviz uses 96 DPI by default
     desiredX = max( x1, x2 ) / 96.0
@@ -344,7 +360,57 @@ def drawGrammar( ruleFilename, outputFilename ):
             outFile.write( divFormat.format( removeHeader( sl ),
                                              removeHeader( sr ) ) )
         outFile.write( htmlFooter )
+
+movieFormat = """
+<div>
+{0}
+</div>
+<div style="border: 1px solid black;>
+{1}
+</div>
+"""
+
+def writeGraphIteration( outFile, i, size, lastGraph, g ):
+    appendTag( g )
+    if lastGraph is not None:
+        transferPositions( lastGraph, g )
+        for n in g.nodes:
+            if n not in lastGraph:
+                g.nodes[n]['color'] = 'green'
+        
+    g.graph['size'] = size
+    position( g )
     
+    ag = to_agraph( g )
+    svg = ag.draw( format="svg", prog="neato" ).decode( 'utf-8' )
+    print( movieFormat.format( i, svg ), file=outFile )
+
+def drawMovie( ruleFilename, outputFilename ):
+    # FIXME: move this to a common function
+    try:
+        with open( ruleFilename, "r" ) as inFile:
+            grammar = loadGraphGrammar( inFile )
+    except ParseError as pe:
+        pe.prettyPrint()
+        exit( 1 )
+
+    with open( outputFilename, "w" ) as outFile:
+        outFile.write( htmlHeader )
+        lastGraph = None
+        
+        def callback( i, g ):
+            nonlocal lastGraph
+            myG = g.copy()
+            writeGraphIteration( outFile=outFile,
+                                 i=i,
+                                 size="5,5",
+                                 lastGraph=lastGraph,
+                                 g=myG )
+            lastGraph = myG
+
+        soffit.application.applyRuleset( ruleFilename, "fixme.tmp.svg", callback=callback ) 
+        outFile.write( htmlFooter )
+
 def usage():
     print( "python -m soffit.display <string>" )
     print( "  Parse graph and output as test.svg." )
@@ -355,6 +421,8 @@ def usage():
     print( "  If multiple matches, <filename> will have a number inserted." )               
     print( "python -m soffit.display --grammar <rule.json> <outputfile>" )
     print( "  Parse a graph grammar and display it as an HTML page with embedded SVG images." )
+    print( "python -m soffit.display --movie <rule.json> <outputfile>" )
+    print( "  Apply a graph grammar and display it as an HTML page with embedded SVG images." )
     exit( 0 )
 
 if __name__ == "__main__":
@@ -373,6 +441,8 @@ if __name__ == "__main__":
         showMatches( sys.argv[2], sys.argv[3], sys.argv[4], outputFile )
     elif sys.argv[1] == "--grammar":
         drawGrammar( sys.argv[2], sys.argv[3] )
+    elif sys.argv[1] == "--movie":
+        drawMovie( sys.argv[2], sys.argv[3] )
     else:
         usage()
             

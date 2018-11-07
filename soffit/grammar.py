@@ -60,8 +60,11 @@ class GraphGrammar(object):
         """Add a rule to the grammar with multiple right-hand choices."""
         self.rules.append( RandomRule( left, rightChoices ) )
 
-    def rulesIter( self ):
-        for r in self.rules:
+    def __ruleSortKey( self, left ):
+        return tuple( sorted( left.nodes ) )
+        
+    def rulesIter( self ):        
+        for r in sorted( self.rules, key=lambda x : self.__ruleSortKey( x.left ) ):
             if isinstance( r, RandomRule ):
                 for right in r.rightChoices:
                     yield ( r.left, right )

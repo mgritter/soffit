@@ -1,0 +1,7 @@
+{
+    "start" : "A[+]; B[*]; X[exp]; Y[exp]; Z[exp]; B->A; B->X->C1; A->Y->C2; A->Z->C3; C1[17]; C2[34]; C3[19]; ",
+    
+    "M->P; M->A; P->B; P->C; P[+]; M[*]; A[exp]; B[exp]; C[exp]" :
+    "M[+]; M1[*]; M2[*]; M->M1; M->M2; M1->A; M1->B; M2->A; M2->C; A[exp]; B[exp]; C[exp]"
+}
+

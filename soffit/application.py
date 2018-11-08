@@ -20,9 +20,10 @@
 import networkx as nx
 from soffit.graph import MatchFinder, RuleApplication, graphIdentifiersToNumbers
 import soffit.parse as parse
-import soffit.display as display
+import soffit.display
 import random
 from functools import reduce
+import time
 
 class NoMatchException(Exception):
     def __init__( self ):
@@ -37,8 +38,40 @@ def makeAllDirected( *graphs ):
                  for g in graphs ]
     else:
         return graphs
-    
-def chooseAndApply( grammar, graph ):
+
+class Timing(object):
+    def __init__( self ):
+        self.keyCache = {}
+        self.samples = {}
+        
+    def key( self, left, right ):
+        k = self.keyCache.get( (left,right), None )
+        if k is not None:
+            return k
+
+        from networkx.drawing.nx_agraph import to_agraph
+        
+        nk = ( to_agraph( left ).string().replace( "\n", " " ),
+               to_agraph( right ).string().replace( "\n", " " ) )
+        self.keyCache[(left,right)] = nk
+        return nk
+        
+    def addSample( self, left, right, sec ):
+        k = self.key( left, right )
+        if k in self.samples:
+            self.samples[k].append( sec )
+        else:
+            self.samples[k] = [ sec ]
+
+    def report( self ):
+        for ( k, v ) in self.samples.items():
+            print( "******" )
+            print( k[0] )
+            print( k[1] )
+            print( "Average:", sum( v ) / len( v ) )
+            print( "Max:", max( v ) )
+                
+def chooseAndApply( grammar, graph, timing = None ):
     nRules = len( grammar.rules )
     # This is a little wasteful but simpler than removing rules
     # since they don't currently have an equality check.
@@ -51,12 +84,16 @@ def chooseAndApply( grammar, graph ):
             # Covert to directed on-demand
             # FIXME: do it ahead of time if any directed graphs exist in the rule set?
             (left, right, graph) = makeAllDirected( left, right, graph )
-            
+
+            start = time.time()
             finder = MatchFinder( graph )
             finder.leftSide( left )
             finder.rightSide( right )
 
             possibleMatches = finder.matches()
+            end = time.time()
+            if timing is not None:
+                timing.addSample( left, right, end - start )
             if len( possibleMatches ) == 0:
                 # Try next right side
                 continue
@@ -77,8 +114,10 @@ def applyRuleset( rulesetFilename,
     Write the final SVG to outputFile.
     The callback function is called with (iteration, graph) at each step."""
 
-    # FIXME: split the load and iteration loop into separate functions.
+    #timing = Timing()
+    timing = None
     
+    # FIXME: split the load and iteration loop into separate functions.    
     print( "Loading grammar from", rulesetFilename )
     # FIXME: catch file not found error
     with open( rulesetFilename, "r" ) as f:
@@ -96,7 +135,7 @@ def applyRuleset( rulesetFilename,
     iteration = 1
     try:
         while iteration <= maxIterations:
-            g = chooseAndApply( grammar, g )
+            g = chooseAndApply( grammar, g, timing=timing )
             print( "Iteration {}: graph size {}".format( iteration,
                                                          len( g.nodes ) ) )
             if callback is not None:
@@ -106,8 +145,10 @@ def applyRuleset( rulesetFilename,
     except NoMatchException:
         print( "No matching rule found at iteration {}".format( iteration ) )
 
+    timing.report()
+    
     print( "Writing SVG to", outputFile )
-    display.drawSvg( g, outputFile )
+    soffit.display.drawSvg( g, outputFile )
 
 if __name__ == "__main__":
     import sys

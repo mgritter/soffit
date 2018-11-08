@@ -8,14 +8,20 @@ started with graph grammars that is nearly as easy.
 
 Tutorial coming soon.
 
-To run: clone or download, and run
+Currently you must have graphviz installed.  On Ubuntu:
+
+```
+apt-get install graphviz graphviz-dev
+```
+
+To run Soffit: clone or download, and run
 
 ```
 pipenv sync
 pipenv shell
 ```
 
-To get the dependent packages, then run
+to get the dependent packages, then run
 
 ```
 python -m soffit.application doc/examples/tree.json tree.svg 1000

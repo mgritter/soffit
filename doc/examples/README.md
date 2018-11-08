@@ -35,9 +35,11 @@ Building a grid
 ### Fixed-sized binary trees ###
 
 Demonstration of using a countdown timer to terminate the growth of the binary tree after a
-given number of nodes have been added.
+given number of nodes have been added.  Three examples from the same grammar are shown.
 
-![binary tree example](countdown.svg)
+1 | 2 | 3
+---- | ---- | ----
+![binary tree example](countdown-1.svg) | ![binary tree example](countdown-2.svg) | ![binary tree example](countdown-3.svg)
 
 [source](countdown.md)
 
@@ -48,7 +50,7 @@ implements a 1-d ceullar automaton on the result.
 
 The example has been edited to apply graphviz styles for 0 and 1, which could be done with a separate rule set.
 
-![rule 30 example](1d-cellular-rule30.json)
+![rule 30 example](1d-cellular-rule30.svg)
 
-[source](1d-cellular-rule30.svg)
+[source](1d-cellular-rule30.json)
 

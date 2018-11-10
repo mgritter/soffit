@@ -22,23 +22,84 @@ from constraint import Constraint, Unassigned, Domain
 class TupleConstraint(Constraint):
     """Provided a collection of tuples, verify that the variable values
     appear as a tuple (in the order specified for the variables.)."""
-    
+
+    def insertTrees( self, a, b ):
+        if a in self.forward:
+            self.forward[a].add( b )
+        else:
+            self.forward[a] = set( [b] )
+
+        if b in self.backward:
+            self.backward[b].add( a )
+        else:
+            self.backward[b] = set( [a] )
+
     def __init__( self, tupleList ):
         self.allowedSet = set( tuple( t ) for t in tupleList )
-        # print( "AllowedSet:", self.allowedSet )
+        self.forward = {}
+        self.backward = {}
+        
+        #print( "AllowedSet:", self.allowedSet )
         if len( self.allowedSet ) > 0:
             someTuple = next( iter( self.allowedSet ) )
-            self.nthSet = [ set( t[i] for t in self.allowedSet )
-                            for i in range( len( someTuple ) ) ]
+            self.nthSet = [ set() for i in range( len( someTuple ) ) ]
+            if len( someTuple ) == 2:
+                for t in self.allowedSet:
+                    self.nthSet[0].add( t[0] )
+                    self.nthSet[1].add( t[1] )
+                    self.insertTrees( t[0], t[1] )
+            else:
+                for t in self.allowedSet:
+                    for (i,x) in enumerate( t ):
+                        self.nthSet[i].add( x )
+
+            #print( "Forward: ", self.forward )
+            #print( "Backward: ", self.backward )
+            #print( "nth: ", self.nthSet )
+            
         else:
             self.nthSet = []
-            
+
+    def pairCheck( self, current, domain, whichMap ):
+        domainValues = set( domain )
+        restrictedValues = whichMap[ current ]
+        #print( "domainValues", domainValues )
+        #print( "restrictedValues", restrictedValues )
+        for val in domainValues.difference( restrictedValues ):
+            #print( "Hiding value", val )
+            domain.hideValue( val )
+            if not domain:
+                return False
+        return True
+        
     def __call__(self, variables, domains, assignments, forwardcheck=False):
         current = tuple( assignments.get( v, Unassigned ) for v in variables )
-        if Unassigned in current:
-            return True
-        else:
+        if Unassigned not in current:
             return current in self.allowedSet
+        
+        if len( variables ) != 2:
+            return True
+
+        if current[0] is not Unassigned:
+            if current[0] not in self.forward:
+                return False                
+            if forwardcheck:
+                return self.pairCheck( current[0],
+                                       domains[variables[1]],
+                                       self.forward )
+                    
+
+        if current[1] is not Unassigned:
+            if current[1] not in self.backward:
+                return False
+            
+            if forwardcheck:
+                return self.pairCheck( current[1],
+                                       domains[variables[0]],
+                                       self.backward )
+
+        return True
+
 
     def preProcess(self, variables, domains, constraints, vconstraints):
         # If only a single variable allowed, variables must be equal to that.

@@ -189,17 +189,23 @@ class MatchFinder(object):
         # graph: 1--2, 1--3, 1--4
         # if X = 1, then 1--2, 1--3, 1--4 must all be mapped to deleted edges
         # If X = 2, then 1--2 must be deleted as well, so A = 2
-
+        #
         # n = label on deleted node in left graph
         for n in dn:
             indicators = []
             # i = which graph node was picked
             possible = False
             for i in self.graph.nodes:
-                # FIXME: check tags *here* too?
-                # Or do both checks in a single pass?  This only
-                # coveres deleted nodes n, though.
-        
+                # We waste a lot of time constructing these
+                # conditions if they're impossible anyway.
+                #
+                # We *could* just pass in a function rather than a table
+                # constraint, since our backend is pyconstraint.  But that
+                # wouldn't be very portable back to a SAT-based solver.
+                tag = self.left.nodes[n].get( 'tag', None )
+                if self.graph.nodes[i].get( 'tag', None ) != tag:
+                    continue
+                        
                 if nx.is_directed( self.graph ):
                     if self._danglingDirected( n, i ):
                         possible = True

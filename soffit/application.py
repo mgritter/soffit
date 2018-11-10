@@ -24,6 +24,7 @@ import soffit.display
 import random
 from functools import reduce
 import time
+import re
 
 class NoMatchException(Exception):
     def __init__( self ):
@@ -39,37 +40,51 @@ def makeAllDirected( *graphs ):
     else:
         return graphs
 
+def to_dot( g ):
+    from networkx.drawing.nx_agraph import to_agraph
+    
+    ag = to_agraph( g )
+    try:
+        del ag.graph_attr['join']
+        del ag.graph_attr['rename']
+    except KeyError:
+        pass
+    dotFormat = ag.string().replace( "\n", " " )
+    return re.sub( r"\s\s+", " ", dotFormat ) 
+    
 class Timing(object):
     def __init__( self ):
         self.keyCache = {}
         self.samples = {}
+        self.enumSamples = {}
         
     def key( self, left, right ):
         k = self.keyCache.get( (left,right), None )
         if k is not None:
             return k
 
-        from networkx.drawing.nx_agraph import to_agraph
-        
-        nk = ( to_agraph( left ).string().replace( "\n", " " ),
-               to_agraph( right ).string().replace( "\n", " " ) )
+        nk = ( to_dot( left ), to_dot( right ) )
         self.keyCache[(left,right)] = nk
         return nk
         
-    def addSample( self, left, right, sec ):
+    def addSample( self, left, right, total, enum ):
         k = self.key( left, right )
         if k in self.samples:
-            self.samples[k].append( sec )
+            self.samples[k].append( total )
+            self.enumSamples[k].append( enum )
         else:
-            self.samples[k] = [ sec ]
+            self.samples[k] = [ total ]
+            self.enumSamples[k] = [ enum ]
 
     def report( self ):
         for ( k, v ) in self.samples.items():
             print( "******" )
-            print( k[0] )
-            print( k[1] )
-            print( "Average:", sum( v ) / len( v ) )
-            print( "Max:", max( v ) )
+            print( "Left:", k[0] )
+            print( "Right:", k[1] )
+            avg = sum( v ) / len( v )
+            enumAvg = sum( self.enumSamples[k] ) / len( self.enumSamples[k] )
+            print( "Mean: {:.3f} / {:3f}".format( enumAvg, avg ) )
+            print( "Max: {:.3f}".format( max( v ) ) )
                 
 def chooseAndApply( grammar, graph, timing = None ):
     nRules = len( grammar.rules )
@@ -89,11 +104,11 @@ def chooseAndApply( grammar, graph, timing = None ):
             finder = MatchFinder( graph )
             finder.leftSide( left )
             finder.rightSide( right )
-
             possibleMatches = finder.matches()
             end = time.time()
+
             if timing is not None:
-                timing.addSample( left, right, end - start )
+                timing.addSample( left, right, end - start, 0 )
             if len( possibleMatches ) == 0:
                 # Try next right side
                 continue
@@ -145,7 +160,8 @@ def applyRuleset( rulesetFilename,
     except NoMatchException:
         print( "No matching rule found at iteration {}".format( iteration ) )
 
-    timing.report()
+    if timing is not None:
+        timing.report()
     
     print( "Writing SVG to", outputFile )
     soffit.display.drawSvg( g, outputFile )

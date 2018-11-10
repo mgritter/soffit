@@ -77,6 +77,8 @@ def drawSvg( g, filename ):
     aGraph.graph_attr['outputorder'] = 'edgesfirst'
     aGraph.node_attr['style']='filled'
     aGraph.node_attr['fillcolor']='white'
+
+    #aGraph.write( "debug.dot" )
     if len( g.nodes ) > 1000:
         aGraph.draw( filename, prog='sfdp' )
     else:

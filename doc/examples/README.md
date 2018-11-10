@@ -48,6 +48,28 @@ given number of nodes have been added.  Three examples from the same grammar are
 This grammar creates a fixed-sized grid using the techniques from the previous two examples, then
 implements a 1-d ceullar automaton on the result.
 
+The "cursor" tag moves across the row adding one "x" at a time:
+
+```
+   eXe
+  SXC
+
+   eXe
+  SXXC
+  
+   eXe
+  SXXXC
+```
+
+At the end of a row, a rule caps it with an end marker and starts a new row
+below the "S", if there are any "row" tags left to consume.
+
+```
+   eXe
+  eXXXe
+ SXC
+```
+
 The example has been edited to apply graphviz styles for 0 and 1, which could be done with a separate rule set.
 
 ![rule 30 example](1d-cellular-rule30.svg)

@@ -95,3 +95,17 @@ python -m soffit.application -i 3000 doc/examples/1d-cellular-rule30.json \
    doc/examples/1d-celluar-display-edges.json \
    doc/examples/1d-cellular-display.json
 ```
+
+### Cyclic Generation ###
+
+In "Procedural Generation in Game Design" (Tanya X. Short and Tarn Adams, editors), Dr. Joris Dormans gives a simple example of a set of graph generation rules on page 88 that implement a lock-and-key puzzle.
+
+I don't have "embedded" nodes like his example shows, and instead used a
+separate node for the lock and key, with tagged edges showing the relationship.
+
+![Dormans example](dormans-pggd.svg)
+
+[source code](dormans-pggd.svg)
+
+
+

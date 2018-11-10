@@ -1,0 +1,15 @@
+{
+    "version" : "0.1",
+    "start": "S->G; S[start]; G[goal]",
+    
+    "S->G; S[start]; G[goal]" :
+    "S->A->G->B->S; S[start]; G[goal]",
+    
+    "X->Y; X[goal]" : [
+        "X->Y; X->Lock->NewGoal; NewGoal[goal]; Y->Key[contains]; Key->Lock[unlocks]; Lock[lock]; Key[key];",
+        "X->New->Y; X[goal]"
+    ],
+
+    "X->Y; X" :        "X->New->Y",
+    "X->Y; X[start]" : "X->New->Y; X[start]"
+}

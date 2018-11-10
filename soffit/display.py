@@ -85,12 +85,25 @@ def drawSvg( g, filename ):
         aGraph.draw( filename, prog='neato' )
 
     
-def reposition_pos( pos, yOffset, xOffset ):\
+def unspline( coord ):
+    c = coord.split( "," )
+    if len( c ) == 2:
+        (y,x) = c
+        yield ( "",y,x )
+    else:
+        yield c
+
+def respline( t, y, x ):
+    if t == "":
+        return ",".join( [str(y), str(x)] )
+    else:
+        return ",".join( [t, str(y), str(x)] )
+        
+def reposition_pos( pos, yOffset, xOffset ):
     return " ".join(
-        ",".join( [ str( float( y ) + yOffset ),
-                    str( float( x ) + xOffset ) ] )
+        respline( t, float(y) + yOffset, float(x) + xOffset )
         for coord in pos.split( " " )
-        for (y,x) in [ coord.split( "," ) ]
+        for (t,y,x) in unspline( coord )
     )
 
 def position( graph ):

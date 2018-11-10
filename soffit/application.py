@@ -25,6 +25,7 @@ import random
 from functools import reduce
 import time
 import re
+import argparse
 
 class NoMatchException(Exception):
     def __init__( self ):
@@ -119,8 +120,8 @@ def chooseAndApply( grammar, graph, timing = None ):
             return rule.result()
 
     raise NoMatchException()
-        
-        
+
+
 def applyRuleset( rulesetFilename, 
                   outputFile,
                   maxIterations = 100,
@@ -166,16 +167,26 @@ def applyRuleset( rulesetFilename,
     print( "Writing SVG to", outputFile )
     soffit.display.drawSvg( g, outputFile )
 
-if __name__ == "__main__":
-    import sys
-    maxIter = 100
-    outputFile = "soffit.svg"
-    if len( sys.argv ) > 2:
-        outputFile = sys.argv[2]
-    if len( sys.argv ) > 3:
-        maxIter = int( sys.argv[3] )
-    
-    applyRuleset( sys.argv[1], outputFile, maxIter )
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument( "grammar", nargs="+", help="Soffit grammar file, may specify multiple to chain them together." )
+    # FIXME: allow time-based bounds?
+    parser.add_argument( "-i", "--iterations",
+                         type=int,
+                         default=100,
+                         help="Maximum nummber of iterations to run, default 100" )
+    # TODO: allow multiple output!
+    # TODO: respect file format (graphviz may do this automatically)88 
+    parser.add_argument( "-o", "--output",
+                         default="soffit.svg",
+                         help="Output file to write, default soffit.svg" )
+    n = parser.parse_args()
+
+    applyRuleset( n.grammar[0], n.output, n.iterations )
+    
+
+if __name__ == "__main__":
+    main()
 
     

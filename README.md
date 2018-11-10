@@ -24,7 +24,7 @@ pipenv shell
 to get the dependent packages, then run
 
 ```
-python -m soffit.application doc/examples/tree.json tree.svg 1000
+python -m soffit.application doc/examples/tree.json --output tree.svg --iterations 100
 ```
 
 ## Documentation ##

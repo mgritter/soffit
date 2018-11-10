@@ -103,7 +103,7 @@ In "Procedural Generation in Game Design" (Tanya X. Short and Tarn Adams, editor
 I don't have "embedded" nodes like his example shows, and instead used a
 separate node for the lock and key, with tagged edges showing the relationship.
 
-![Dormans example](dormans-pggd.svg)
+![Dormans example](dormans-pggd.json)
 
 [source code](dormans-pggd.svg)
 

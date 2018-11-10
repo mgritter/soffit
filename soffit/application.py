@@ -121,7 +121,71 @@ def chooseAndApply( grammar, graph, timing = None ):
 
     raise NoMatchException()
 
+class ApplicationState:
+    """Apply a graph grammar to a rule.  Contains capabilities for profiling the
+    graph grammar, logging output as it runs, and limiting the amount of runtime. (TBD)"""
+    def __init__( self, initialGraph, grammar = None, callback = None ):
+        """Specify the initial graph and (optionally) a starting grammar.
+        The "callback" function will be called once per iteration with the
+        iteration number and the current graph.
+        """
+        self.grammar = grammar
+        self.graph = graphIdentifiersToNumbers( initialGraph )
+        self.iteration = 0
+        self.callback = callback
+        self.verbose = True
+        self.timing = None
+        
+    def startProfile( self ):
+        self.timing = Timing()
+        self.verbose = True
 
+    def reportProfile( self ):
+        if self.timing is not None:
+            self.timing.report()
+        
+    def changeGrammar( self, grammar ):
+        self.grammar = grammar
+        
+    def runSingleIter( self ):
+        self.graph = chooseAndApply( self.grammar, self.graph, timing=self.timing )
+
+        if self.verbose:
+            print( "Iteration {}: graph size {}".format( self.iteration,
+                                                         len( self.graph.nodes ) ) )            
+        if self.callback is not None:
+            self.callback( iteration, g )
+            
+        self.iteration += 1
+        
+    def run( self, maxIterations ):
+        # FIXME: double callback when we switch grammars?
+        if self.callback is not None:
+            self.callback( self.iteration, self.graph )
+
+        try:
+            while self.iteration <= maxIterations:
+                self.runSingleIter()
+            if self.verbose:
+                print( "Stopping expansion after {} iterations".format( self.iteration - 1 ) )
+            return True
+        except NoMatchException:
+            if self.verbose:
+                print( "No matching rule found at iteration {}".format( self.iteration ) )
+            return False
+
+def loadGrammar( rulesetFilename, verbose=True ):
+    if verbose:
+        print( "Loading grammar from", rulesetFilename )
+        
+    # FIXME: catch file not found error
+    with open( rulesetFilename, "r" ) as f:
+        try:
+            return parse.loadGraphGrammar( f  )
+        except parse.ParseError as pe:
+            pe.prettyPrint()
+            exit( 1 )
+    
 def applyRuleset( rulesetFilename, 
                   outputFile,
                   maxIterations = 100,
@@ -130,48 +194,15 @@ def applyRuleset( rulesetFilename,
     Write the final SVG to outputFile.
     The callback function is called with (iteration, graph) at each step."""
 
-    #timing = Timing()
-    timing = None
-    
-    # FIXME: split the load and iteration loop into separate functions.    
-    print( "Loading grammar from", rulesetFilename )
-    # FIXME: catch file not found error
-    with open( rulesetFilename, "r" ) as f:
-        try:
-            grammar = parse.loadGraphGrammar( f  )
-        except parse.ParseError as pe:
-            pe.prettyPrint()
-            exit( 1 )
-            
-    g = graphIdentifiersToNumbers( grammar.start )
-
-    if callback is not None:
-        callback( 0, g )
-    
-    iteration = 1
-    try:
-        while iteration <= maxIterations:
-            g = chooseAndApply( grammar, g, timing=timing )
-            print( "Iteration {}: graph size {}".format( iteration,
-                                                         len( g.nodes ) ) )
-            if callback is not None:
-                callback( iteration, g )
-            iteration += 1
-        print( "Stopping expansion after {} iterations".format( iteration - 1 ) )
-    except NoMatchException:
-        print( "No matching rule found at iteration {}".format( iteration ) )
-
-    if timing is not None:
-        timing.report()
-    
-    print( "Writing SVG to", outputFile )
+    grammar = loadGrammar( rulesetFilename )            
+    app = ApplicationState( initialGraph=g, grammar=grammar, callback=callback )
+    app.run( maxIterations=maxIterations )
     soffit.display.drawSvg( g, outputFile )
-
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument( "grammar", nargs="+", help="Soffit grammar file, may specify multiple to chain them together." )
-    # FIXME: allow time-based bounds?
+    # TODO: allow time-based bounds?
     parser.add_argument( "-i", "--iterations",
                          type=int,
                          default=100,
@@ -181,10 +212,24 @@ def main():
     parser.add_argument( "-o", "--output",
                          default="soffit.svg",
                          help="Output file to write, default soffit.svg" )
-    n = parser.parse_args()
+    parser.add_argument( "--profile",
+                         help="Profile the graph grammar.",
+                         action="store_true" )
+    a = parser.parse_args()
 
-    applyRuleset( n.grammar[0], n.output, n.iterations )
-    
+    grammars = [ loadGrammar( fn ) for fn in a.grammar ]
+    app = ApplicationState( initialGraph = grammars[0].start )
+
+    for g in grammars:
+        app.changeGrammar( g )
+        if a.profile:
+            app.startProfile()
+        app.run( maxIterations = a.iterations )
+        if a.profile:
+            app.reportProfile()
+
+    print( "Writing final graph to", a.output )
+    soffit.display.drawSvg( app.graph, a.output )
 
 if __name__ == "__main__":
     main()

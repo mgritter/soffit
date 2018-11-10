@@ -1,0 +1,12 @@
+{
+    "version" : "0.1",
+    "X->Y [h]; X[0]; Y[0];" : "X->Y [color=white]; X[0]; Y[0];",
+    "X->Y [h]; X[0]; Y[1];" : "X->Y [color=white]; X[0]; Y[1];",
+    "X->Y [h]; X[1]; Y[0];" : "X->Y [color=white]; X[1]; Y[0];",
+    "X->Y [h]; X[1]; Y[1];" : "X->Y [color=white]; X[1]; Y[1];",
+
+    "X->Y [v]; X[0]; Y[0];" : "X->Y [color=white]; X[0]; Y[0];",
+    "X->Y [v]; X[0]; Y[1];" : "X->Y [color=white]; X[0]; Y[1];",
+    "X->Y [v]; X[1]; Y[0];" : "X->Y [color=white]; X[1]; Y[0];",
+    "X->Y [v]; X[1]; Y[1];" : "X->Y [color=white]; X[1]; Y[1];"
+}

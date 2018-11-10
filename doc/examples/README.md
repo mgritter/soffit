@@ -56,7 +56,7 @@ The "cursor" tag moves across the row adding one "x" at a time:
 
    eXe
   SXXC
-  
+
    eXe
   SXXXC
 ```
@@ -70,6 +70,12 @@ below the "S", if there are any "row" tags left to consume.
  SXC
 ```
 
+This rule is illustrated below:
+
+left graph | right graph
+--- | ----
+![left](1d-cellular-left.svg) | ![right](1d-cellular-right.svg)
+
 The example here has been run through three different rule sets to apply
 styles to the edges (still present, but colored white so they don't show)
 and to the nodes.
@@ -77,7 +83,9 @@ and to the nodes.
 ![rule 30 example](1d-cellular-rule30.svg)
 
 [source](1d-cellular-rule30.json)
+
 [edge styling](1d-cellular-display-edges.json)
+
 [node styling](1d-cellular-rule30-display.json)
 
 Command line:

@@ -70,9 +70,20 @@ below the "S", if there are any "row" tags left to consume.
  SXC
 ```
 
-The example has been edited to apply graphviz styles for 0 and 1, which could be done with a separate rule set.
+The example here has been run through three different rule sets to apply
+styles to the edges (still present, but colored white so they don't show)
+and to the nodes.
 
 ![rule 30 example](1d-cellular-rule30.svg)
 
 [source](1d-cellular-rule30.json)
+[edge styling](1d-cellular-display-edges.json)
+[node styling](1d-cellular-rule30-display.json)
 
+Command line:
+
+```
+python -m soffit.application -i 3000 doc/examples/1d-cellular-rule30.json \
+   doc/examples/1d-celluar-display-edges.json \
+   doc/examples/1d-cellular-display.json
+```

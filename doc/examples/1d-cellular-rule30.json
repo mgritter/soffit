@@ -1,6 +1,6 @@
 {
     "version" : "0.1",
-    "start" : "E1->X1->E2 [h]; E1[e]; E2[e]; X1[x]; S->X->C[h]; S[start]; X[x]; C[cursor]; E1->X[v]; X1->C[v]; R[row]; RE[end]; R->R1->R2->R3->R4->R5->R6->R7->R8->R9->RE",
+    "start" : "E1->X1->E2 [h]; E1[e]; E2[e]; X1[x]; S->X->C[h]; S[start]; X[x]; C[cursor]; E1->X[v]; X1->C[v]; R[row]; RE[end]; R->R1->R2->R3->R4->R5->R6->R7->R8->R9->R10->R11->R12->R13->R14->R15->R16->R17->R18->R19->R20->RE",
     
     "X[x]; P[x]; P1[x]; C[cursor]; X->C [h]; P->C[v]; P->P1[h]" :
     "X[x]; P[x]; P1[x]; C[x];      X->C [h]; P->C[v]; P->P1[h]; N[cursor]; P1->N[v]; C->N[h]",

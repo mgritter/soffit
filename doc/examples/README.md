@@ -107,5 +107,15 @@ separate node for the lock and key, with tagged edges showing the relationship.
 
 [source code](dormans-pggd.json)
 
+### Random Pentominos ###
+
+A pentomino can be viewed as either a chain 1-2-3-4-5 or a forked chain 1-2-3-4 3-5.  (Some shapes can be represented both ways.)  So we can generate
+random pentominos on a grid by matching these two patterns with
+previously-unmatched squares.  Without wildcarding, it's difficult to generate
+a lot of different colors.
+
+![Three pentominos on a 5x5 grid](pentomino.svg)
+
+[source code](pentomino.json)
 
 

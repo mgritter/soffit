@@ -1,0 +1,23 @@
+{
+  "version" : "0.1",
+    "start" : "W0[x];C0[x];O0[x];N0[x];Q0[x];D0[x];R0[x];V0[x];A0[x];M0[x];P0[x];U0[x];K0[x];B0[x];T0[x];H0[x];J0[x];E0[x];X0[x];L0[x];Y0[x];I0[x];S0[x];F0[x];G0[x];W0--A0;W0--B0;W0--I0;W0--H0;C0--L0;C0--O0;O0--T0;O0--Y0;N0--Q0;N0--D0;Q0--K0;Q0--R0;D0--U0;D0--R0;R0--I0;R0--B0;V0--S0;V0--P0;V0--K0;A0--T0;A0--Y0;A0--G0;M0--T0;M0--E0;M0--G0;P0--B0;P0--X0;P0--H0;U0--I0;U0--L0;K0--B0;H0--J0;H0--G0;J0--X0;J0--F0;E0--F0;X0--S0;L0--Y0;Y0--I0;F0--G0;COLOR1[red];COLOR2[blue];COLOR3[green];",
+
+    "L[red]; A--B--C--D--E; A[x]; B[x]; C[x]; D[x]; E[x]" :
+    "        A--B--C--D--E; A[color=red]; B[color=red]; C[color=red]; D[color=red]; E[color=red]",
+    
+    "L[green]; A--B--C--D--E; A[x]; B[x]; C[x]; D[x]; E[x]" :
+    "          A--B--C--D--E; A[color=green]; B[color=green]; C[color=green]; D[color=green]; E[color=green]",
+    
+    "L[blue]; A--B--C--D; C--E; A[x]; B[x]; C[x]; D[x]; E[x]" :
+    "         A--B--C--D; C--E; A[color=blue]; B[color=blue]; C[color=blue]; D[color=blue]; E[color=blue]",
+
+    "X[color=blue]" :
+    "X[fillcolor=blue,style=filled,shape=square]",
+    
+    "X[color=green]" :
+    "X[fillcolor=green,style=filled,shape=square]",
+    
+    "X[color=red]" :
+    "X[fillcolor=red,style=filled,shape=square]"
+}
+

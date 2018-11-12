@@ -108,7 +108,7 @@ class TupleConstraint(Constraint):
             # Impossible
             for v in variables:
                 domains[v] = Domain( [] )
-                vcontraints[v].remove( (self,variables) )
+                vconstraints[v].remove( (self,variables) )
                 
             constraints.remove( (self,variables) )
             return

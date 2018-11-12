@@ -11,6 +11,7 @@ networkx = "*"
 matplotlib = "*"
 pygraphviz = "*"
 python-constraint = "*"
+hypothesis = "*"
 
 [requires]
 python_version = "3.5"

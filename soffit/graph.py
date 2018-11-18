@@ -29,8 +29,12 @@ def graphIdentifiersToNumbers( g ):
     new node IDs as we evolve the grammar."""
 
     ret = nx.convert_node_labels_to_integers( g )
-    nextId = max( ret.nodes ) + 1
-    ret.graph['nextId'] = nextId
+    if len( ret.nodes ) > 0:        
+        nextId = max( ret.nodes ) + 1
+        ret.graph['nextId'] = nextId
+    else:
+        ret.graph['nextId'] = 0
+        
     return ret
 
 def allocateNewNode( g, tag = None ):
@@ -94,6 +98,8 @@ class MatchFinder(object):
         self.model = Problem()
         self.impossible = False
         self.verbose = verbose
+        self.maxMatches = 100000
+        self.maxMatchTime = 60.0
 
     def checkCompatible( self, lr ):
         if nx.is_directed( self.graph ) != nx.is_directed( lr ):
@@ -103,6 +109,7 @@ class MatchFinder(object):
         """Specify the left side of a rule; that is, a graph to match."""
         self.checkCompatible( leftGraph )
 
+        # FIXME: handle zero-length left graphs?
         self.left = leftGraph
         maxVertex = max( self.graph.nodes )
 
@@ -271,17 +278,7 @@ class MatchFinder(object):
 
         graphAdjacent = self.graph[i]
 
-        # An easy case: does i have too many edges for the rule to delete
-        # them all?
-        if len( graphAdjacent ) > len( deletedAdjacentEdges ):
-            if self.verbose:
-                print( "{} => {} is impossible, too many neighbors".format( n, i ) )
-            self.model.addConstraint( NotInSetConstraint([i]), [n] )
-            return False
-
-        # Another easy case: does i have a self-loop but N does not?
-        # FIXME: the previous case seems suspect, because self-loop is in
-        # graphAdjacent
+        # Does i have a self-loop but N does not?
         if i in graphAdjacent:
             if (n,n) not in self.deletedEdges:
                 # Then impossible to match.
@@ -289,6 +286,20 @@ class MatchFinder(object):
                     print( "{} => {} is impossible, no self-loop".format( n, i ) )
                 self.model.addConstraint( NotInSetConstraint([i]), [n] )
                 return False
+            
+            # Remove self loop from consideration for the rest of the code.
+            graphAdjacent = [ x for x in graphAdjacent if x != i ]
+
+        # An easy case: does i have too many edges for the rule to delete
+        # them all?
+        if len( graphAdjacent ) > len( deletedAdjacentEdges ):
+            if self.verbose:
+                print( "{} => {} is impossible, too many neighbors".format( n, i ) )
+                print( "graphAdjacent", graphAdjacent )
+                print( "deletedAdjacentEdges", deletedAdjacentEdges )
+
+            self.model.addConstraint( NotInSetConstraint([i]), [n] )
+            return False
 
         # FIXME: write a test for ordering of these two conditions.
         # Are there no incident edges, and we didn't expect any?
@@ -406,7 +417,15 @@ class MatchFinder(object):
             return []
         
         start = time.time()
-        solns = self.model.getSolutions()
+        solns = []
+        x = self.model.getSolutionIter()
+        while len( solns ) < self.maxMatches:
+            try:
+                solns.append( next( x ) )
+                if time.time() - start < self.maxMatchTime:
+                    break
+            except StopIteration:
+                break
         end = time.time()
 
         if self.verbose:

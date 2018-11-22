@@ -20,13 +20,42 @@
 import unittest
 import soffit.graph as sg
 import networkx as nx
-from hypothesis import given, assume, note
+from hypothesis import given, assume, note, reproduce_failure, settings
 import hypothesis.strategies as st
 
-nodeIds = st.text( alphabet="ABCDEFGHIJKLMNOPQRSTUVWZYZ",
-                   min_size=1 )
+nodeIds_list = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+nodeIds = st.sampled_from( nodeIds_list )
 edgeStrategy = st.lists( st.tuples( nodeIds, nodeIds ) )
-                   
+edgeStrategy1_to_10 = st.lists( st.tuples( nodeIds, nodeIds ), min_size=1, max_size=10 )
+edgeStrategy0_to_10 = st.lists( st.tuples( nodeIds, nodeIds ), min_size=0, max_size=10 )
+
+@st.composite
+def undirected_subgraph_and_extra_edges( draw ):
+    """Return extra edges such that at least one edge is new, and connects to existing nodes."""
+    edges = draw( edgeStrategy1_to_10 )
+    edgeList = [ (min(s,t), max(s,t)) for (s,t) in edges ]
+    
+    nodes = [ s for (s,t) in edges ] + [ t for (s,t) in edges ]
+    s = draw( st.sampled_from( nodes ) )
+    t = draw( nodeIds )
+    newEdge = (min(s,t), max(s,t))
+    assume( newEdge not in edgeList )
+
+    moreEdges = draw( edgeStrategy0_to_10 ) + [ newEdge ]
+    return (edges, moreEdges)
+
+@st.composite
+def disjoint_subgraphs( draw ):
+    """Return graphs that contain no nodes in common."""
+    edges = draw( edgeStrategy1_to_10 )
+    nodes = [ s for (s,t) in edges ] + [ t for (s,t) in edges ]
+
+    remainingIds_list = [ x for x in nodeIds_list if x not in nodes ]
+    remainingIds = st.sampled_from( remainingIds_list )
+    moreEdges = draw( st.lists( st.tuples( remainingIds, remainingIds ), min_size=0, max_size=10 ) )
+    return (edges, moreEdges)
+
 class TestMatchAndReplace(unittest.TestCase):
     def undirectedGraphFromEdgeList( self, edges ):
         g = nx.Graph()
@@ -84,27 +113,60 @@ class TestMatchAndReplace(unittest.TestCase):
                 k = join[k]
             rename[orig] = k
         g.graph['rename'] = rename
+        
+    @given( disjoint_subgraphs() )
+    @settings( deadline=200 )
+    def test_delete_subgraph( self, sgs ):
+        (edges, moreEdges ) = sgs
 
-    @unittest.skip( "Failing, bad assertion." )
-    @given( edgeStrategy, edgeStrategy )
-    def test_delete_subgraph( self, edges, moreEdges ):
-        assume( len( edges ) > 0 )
-        assume( len( moreEdges ) > 0 )
+        nodesG = set( [ s for (s,t) in moreEdges ] + [ t for (s,t) in moreEdges ] )
         
         l = self.undirectedGraphFromEdgeList( edges )
         r = nx.Graph()
         self._buildRename( r )
-        g = self.undirectedGraphFromEdgeList( edges + moreEdges )        
-        g = sg.graphIdentifiersToNumbers( g )
+        g_orig = self.undirectedGraphFromEdgeList( edges + moreEdges )        
+        g = sg.graphIdentifiersToNumbers( g_orig )
 
-        finder = sg.MatchFinder( g, verbose=True )
+        finder = sg.MatchFinder( g, verbose=False )
         finder.maxMatches = 2
         finder.maxMatchTime = 0.2
         finder.leftSide( l )
         finder.rightSide( r )
+        
         m = finder.matches()
-        self.assertGreaterEqual( len( m ), 1 )
+        self.assertGreater( len( m ), 0 )
         
         app = sg.RuleApplication( finder, m[0] )
         g2 = app.result()
+
+        self.assertEqual( len( g2.nodes ), len( nodesG ) )
+
+    @given( undirected_subgraph_and_extra_edges() )
+    @settings( deadline=200 )
+    def test_cant_delete_subgraph( self, ug ):
+        (edges, moreEdges) = ug
+
+        # OK, build the graph and label the edges so the deletion can only happen
+        # in one way (which is disallowed)
+        l = self.undirectedGraphFromEdgeList( edges )
+        for (s,t) in edges:
+            l.nodes[s]['tag'] = 'kill'
+            l.nodes[t]['tag'] = 'kill'
+            
+        r = nx.Graph()
+        self._buildRename( r )
+        g_orig = self.undirectedGraphFromEdgeList( edges + moreEdges )
+        for (s,t) in edges:
+            g_orig.nodes[s]['tag'] = 'kill'
+            g_orig.nodes[t]['tag'] = 'kill'                   
+        g = sg.graphIdentifiersToNumbers( g_orig )
+
+        finder = sg.MatchFinder( g, verbose=False )
+        finder.maxMatches = 2
+        finder.maxMatchTime = 0.2
+        finder.leftSide( l )
+        finder.rightSide( r )
+        
+        m = finder.matches()
+        self.assertEqual( len( m ), 0 )
 

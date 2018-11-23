@@ -146,6 +146,100 @@ class ConditionalConstraint(Constraint):
 
         return self.otherConstraint( variables[1:], domains, assignments, forwardcheck )
 
+class ConditionalTupleConstraint(Constraint):
+    """Apply a tuple constraint to variables 1..n-1 only if variable 0 matches
+    the given value.  The inputs are tuples (a0, a1, a2, ...) and if 
+    v0 == a0 then it must be the case that v1==a1, v2==a2, v3==a3 for some 
+    tuple.  If v0 doesn't match any a0, the constraint is met."""
+    def __init__( self, tupleSet ):
+        self.byValue = {}
+        for t in tupleSet:
+            first = t[0]
+            rest = tuple( t[1:] )
+            if first in self.byValue:
+                self.byValue[first].add( rest )
+            else:
+                self.byValue[first] = set( [ rest ] )
+
+    def isCompatible( self, currentValues, allowedValues ):
+        for (c,a) in zip( currentValues, allowedValues ):
+            if c is not Unassigned and c != a:
+                return False
+        return True
+        
+    def possibleFirstValue( self, first, currentValues ):
+        if first not in self.byValue:
+            # Always allowable
+            return True
+
+        # TODO: could we do forward checking on the remaining values by
+        # seeing if there are elements which *never* appear?  The problem
+        # is that the first case could open things up a lot and make all our
+        # work moot.
+        for allowed in self.byValue[first]:
+            if self.isCompatible( currentValues, allowed ):
+                return True
+        
+    def __call__(self, variables, domains, assignments, forwardcheck=False):
+        # print( "Call", assignments, domains, bool(forwardcheck) )
+        current = [ assignments.get( v, Unassigned ) for v in variables ]
+        # print( "Current", current )
+        if current[0] is Unassigned:
+            # We don't know which value to look up, but if we can rule it
+            # out from the other assignments, we can do some forward checking.
+            if not forwardcheck:
+                return True
+            
+            domain = domains[variables[0]]
+            for v in list( domain ):
+                if not self.possibleFirstValue( v, current[1:] ):
+                    domain.hideValue( v )
+                    if not domain:
+                        return False
+                    
+            return True
+
+        if current[0] not in self.byValue:
+            # Unrestricted
+            return True
+        
+        # OK, we can narrow down to just a subset of the tuples now
+        allowedTuples = self.byValue[current[0]]
+
+        if Unassigned not in current:
+            return tuple( current[1:] ) in allowedTuples
+        
+        compatibleTuples = [
+            allowed for allowed in allowedTuples
+            if self.isCompatible( current[1:], allowed )
+        ]
+        # print( "compatibleTuples", compatibleTuples ) 
+
+        if len( compatibleTuples ) == 0:
+            return False
+
+        if not forwardcheck:
+            return True
+
+        for i, variable in enumerate( variables[1:] ):
+            # I think we're allowed to do this only for unassigned variables,
+            # I got a missing solution otherwise.
+            if variable in assignments:
+                continue
+            
+            domain = domains[variable]
+            ithValues = set( ct[i] for ct in compatibleTuples )
+            # print( "ithValues",ithValues )
+            for v in list( domain ):
+                if v not in ithValues:
+                    # print( "Hide", v, "from", variable )
+                    domain.hideValue( v )
+                    if not domain:
+                        # print( "Domain emptied!" )
+                        return False
+                    
+        return True
+        
 class NonoverlappingSets(Constraint):
     """Provided set of variables A and B, ensure that variables in A
     do not share any values with variables in B."""

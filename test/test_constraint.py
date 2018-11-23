@@ -159,6 +159,133 @@ class TestConditionalConstraint(unittest.TestCase):
                              self.domains(),
                              { 'b' : 1, 'c': 1, 'd': 1 } ) )
 
+class TestConditionalTupleConstraint(unittest.TestCase):
+    def domains( self ):
+        return { 'a' : Domain( range( 0, 10 ) ),
+                 'b' : Domain( range( 0, 10 ) ),
+                 'c' : Domain( range( 0, 10 ) ),
+                 'd' : Domain( range( 0, 10 ) ) }
+    
+    def test_call( self ):
+        tuples = [ (7, 1, 2),
+                   (7, 2, 3) ]
+        ctc = ConditionalTupleConstraint( tuples )
+
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'a' : 5, 'b' : 1, 'c': 1, 'd': 1 } ) )
+
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'a' : 7, 'b' : 1, 'c': 2 } ) )
+        
+        self.assertFalse( ctc( ['a', 'b', 'c'],
+                               self.domains(),
+                               { 'a' : 7, 'b' : 3, 'c': 4 } ) )
+        
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'a' : 8, 'b' : 3, 'c': 4 } ) )
+
+    def test_compatible_tuples( self ):
+        tuples = [ (7, 1, 2),
+                   (7, 2, 3),
+                   (8, 1, 4),
+                   (8, 9, 4) ]
+        ctc = ConditionalTupleConstraint( tuples )
+
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'b' : 1, 'c': 1 } ) )
+        
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'b' : 1, 'c': 4 } ) )
+        
+        self.assertFalse( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'a' : 7,  'c': 4 } ) )
+        
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              self.domains(),
+                              { 'a' : 8,  'c': 4 } ) )
+
+    def test_forward_check( self ):
+        tuples = [ (7, 1, 2),
+                   (7, 2, 3),
+                   (8, 1, 4),
+                   (8, 9, 4) ]
+        ctc = ConditionalTupleConstraint( tuples )
+
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              d,
+                              { 'b' : 1, 'c': 1 },
+                              forwardcheck = True ) )
+        self.assertNotIn( 7, d['a'] )
+        self.assertNotIn( 8, d['a'] )
+
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c'],
+                              d,
+                              { 'a' : 7 },
+                              forwardcheck = True ) )
+        self.assertNotIn( 3, d['b'] )
+        self.assertNotIn( 4, d['b'] )
+        self.assertIn( 1, d['b'] )
+        self.assertIn( 2, d['b'] )
+        
+        self.assertNotIn( 1, d['c'] )
+        self.assertNotIn( 4, d['c'] )
+        self.assertIn( 2, d['c'] )
+        self.assertIn( 3, d['c'] )
+
+        d = self.domains()
+        d['b'] = Domain( [5, 6, 7] )
+        self.assertFalse( ctc( ['a', 'b', 'c'],
+                               d,
+                               { 'a' : 8 },
+                               forwardcheck = True ) )
+
+    def test_bug( self ):
+        tuples = [ (0, 0, 0, 0),
+                   (0, 0, 1, 1) ]
+        ctc = ConditionalTupleConstraint( tuples )
+
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c', 'd'],
+                              d,
+                              { 'a' : 0, 'b': 0, 'c' : 0, 'd' : 0 } ) )
+
+        self.assertTrue( ctc( ['a', 'b', 'c', 'd'],
+                              d,
+                              { 'a' : 0, 'b': 0, 'c' : 0, 'd' : 0 },
+                              forwardcheck = True ) )
+
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c', 'd'],
+                              d,
+                              { 'a' : 0 },
+                              forwardcheck = True ) )
+
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c', 'd'],
+                              d,
+                              { 'b' : 0 },
+                              forwardcheck = True ) )
+
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c', 'd'],
+                              d,
+                              { 'c' : 0 },
+                              forwardcheck = True ) )
+        
+        d = self.domains()
+        self.assertTrue( ctc( ['a', 'b', 'c', 'd'],
+                              d,
+                              { 'd' : 0 },
+                              forwardcheck = True ) )
+
 class TestOverlapConstraint(unittest.TestCase):
     def domains( self ):
         return { 'a' : Domain( range( 0, 10 ) ),

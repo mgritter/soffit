@@ -46,6 +46,22 @@ def undirected_subgraph_and_extra_edges( draw ):
     return (edges, moreEdges)
 
 @st.composite
+def directed_subgraph_and_extra_edges( draw ):
+    """Return extra edges such that at least one edge is new, and connects to existing nodes."""
+    edges = list( draw( edgeStrategy1_to_10 ) )
+
+    nodes = [ s for (s,t) in edges ] + [ t for (s,t) in edges ]
+    s = draw( st.sampled_from( nodes ) )
+    t = draw( nodeIds )
+    # Allow edge to go either way
+    newEdge = draw( st.sampled_from( [(s, t), (t,s)] ) )
+    
+    assume( newEdge not in edges )
+
+    moreEdges = draw( edgeStrategy0_to_10 ) + [ newEdge ]
+    return (edges, moreEdges)
+
+@st.composite
 def disjoint_subgraphs( draw ):
     """Return graphs that contain no nodes in common."""
     edges = draw( edgeStrategy1_to_10 )
@@ -59,6 +75,12 @@ def disjoint_subgraphs( draw ):
 class TestMatchAndReplace(unittest.TestCase):
     def undirectedGraphFromEdgeList( self, edges ):
         g = nx.Graph()
+        for (s,t) in edges:
+            g.add_edge( s, t )
+        return g
+
+    def directedGraphFromEdgeList( self, edges ):
+        g = nx.DiGraph()
         for (s,t) in edges:
             g.add_edge( s, t )
         return g
@@ -140,6 +162,33 @@ class TestMatchAndReplace(unittest.TestCase):
         g2 = app.result()
 
         self.assertEqual( len( g2.nodes ), len( nodesG ) )
+        
+    @given( disjoint_subgraphs() )
+    @settings( deadline=200 )
+    def test_delete_directed_subgraph( self, sgs ):
+        (edges, moreEdges ) = sgs
+
+        nodesG = set( [ s for (s,t) in moreEdges ] + [ t for (s,t) in moreEdges ] )
+        
+        l = self.directedGraphFromEdgeList( edges )
+        r = nx.DiGraph()
+        self._buildRename( r )
+        g_orig = self.directedGraphFromEdgeList( edges + moreEdges )        
+        g = sg.graphIdentifiersToNumbers( g_orig )
+
+        finder = sg.MatchFinder( g, verbose=False )
+        finder.maxMatches = 2
+        finder.maxMatchTime = 0.2
+        finder.leftSide( l )
+        finder.rightSide( r )
+        
+        m = finder.matches()
+        self.assertGreater( len( m ), 0 )
+        
+        app = sg.RuleApplication( finder, m[0] )
+        g2 = app.result()
+
+        self.assertEqual( len( g2.nodes ), len( nodesG ) )
 
     @given( undirected_subgraph_and_extra_edges() )
     @settings( deadline=200 )
@@ -156,6 +205,34 @@ class TestMatchAndReplace(unittest.TestCase):
         r = nx.Graph()
         self._buildRename( r )
         g_orig = self.undirectedGraphFromEdgeList( edges + moreEdges )
+        for (s,t) in edges:
+            g_orig.nodes[s]['tag'] = 'kill'
+            g_orig.nodes[t]['tag'] = 'kill'                   
+        g = sg.graphIdentifiersToNumbers( g_orig )
+
+        finder = sg.MatchFinder( g, verbose=False )
+        finder.maxMatches = 2
+        finder.maxMatchTime = 0.2
+        finder.leftSide( l )
+        finder.rightSide( r )
+        
+        m = finder.matches()
+        self.assertEqual( len( m ), 0 )
+
+
+    @given( directed_subgraph_and_extra_edges() )
+    @settings( deadline=200 )
+    def test_cant_delete_directed_subgraph( self, dg ):
+        (edges, moreEdges) = dg
+
+        l = self.directedGraphFromEdgeList( edges )
+        for (s,t) in edges:
+            l.nodes[s]['tag'] = 'kill'
+            l.nodes[t]['tag'] = 'kill'
+            
+        r = nx.DiGraph()
+        self._buildRename( r )
+        g_orig = self.directedGraphFromEdgeList( edges + moreEdges )
         for (s,t) in edges:
             g_orig.nodes[s]['tag'] = 'kill'
             g_orig.nodes[t]['tag'] = 'kill'                   

@@ -76,7 +76,7 @@ class TestGraphModification(unittest.TestCase):
         (dn, de) = rh.ruleDeletions( l )
         if testVerbose:
             print( "Deleted nodes:", dn )
-            print( "Deleted edgess:", de )
+            print( "Deleted edges:", de )
             
         self.assertEqual( len( dn ), 2 )
         self.assertEqual( len( de ), 0 )

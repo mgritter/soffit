@@ -98,6 +98,10 @@ class MatchFinder(object):
         self.model = Problem()
         self.impossible = False
         self.verbose = verbose
+
+        self.currentConstraintVariables = None
+        self.currentConstraintTuples = None
+        
         self.maxMatches = 100000
         self.maxMatchTime = 60.0
 
@@ -159,7 +163,35 @@ class MatchFinder(object):
             self.model.addConstraint( TupleConstraint( matchingTag ),
                                       [ a, b ] )
                                               
-            
+    def addConditionalTupleConstraint( self, first, rest, variables ):
+        if self.currentConstraintVariables != variables:
+            self.finishTupleConstraint()
+            self.currentConstraintVariables = variables
+            self.currentConstraintTuples = []
+
+        for r in rest:
+            self.currentConstraintTuples.append( (first,) + r )
+
+    def finishTupleConstraint( self ):
+        if self.currentConstraintVariables is None:
+            return
+        
+        if self.verbose:
+            vs = self.currentConstraintVariables
+            print( "If    |Then" )
+            print( " ".join( "{:>6}".format( str( v ) ) for v in vs ) )
+            print( "|".join( "------" for v in vs ) )
+            for t in self.currentConstraintTuples:
+                print( " ".join( "{:6}".format( y ) for y in t ) )
+                
+        self.model.addConstraint(
+            ConditionalTupleConstraint( self.currentConstraintTuples ),
+            self.currentConstraintVariables
+        )
+
+        self.currentConstraintVariables = None
+        self.currentConstraintTuples = []
+        
     def rightSide( self, rightGraph ):        
         """Specify the right side of a rule; if the rule deletes nodes,
         this restricts further which matches may be made.
@@ -223,6 +255,8 @@ class MatchFinder(object):
             if not possible:
                 self.impossible = True
                 return
+
+            self.finishTupleConstraint()
 
         # Fossil code: keep to allow non-injective matching as an option?
         #
@@ -327,21 +361,11 @@ class MatchFinder(object):
             self.model.addConstraint( NotInSetConstraint([i]), [n] )
             return False
 
+        # FIXME: this allows multiple assignments to the same adjacency,
+        # which is not possible in an injective mapping.
         values = list( surjectiveMappings( len( neighborVars ),
                                            list( graphAdjacent ) ) )
-        if self.verbose:
-            print( "When {} = {}:".format( n, i ) )
-            if len( values ) == 0:
-                print( "No neighbor mappings found??" )
-            else:
-                print( " ".join( "{:>6}".format( str( x ) ) for x in neighborVars ) )
-                print( "|".join( "------" for x in neighborVars ) )
-                for v in values:
-                    print( " ".join( "{:6}".format( y ) for y in v ) )
-            print()
-
-        self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
-                                  [n] + neighborVars )
+        self.addConditionalTupleConstraint( i, values, [n] + neighborVars )
         return True
 
     def _danglingDirected( self, n, i ):
@@ -395,17 +419,8 @@ class MatchFinder(object):
                 self.model.addConstraint( NotInSetConstraint([i]), [n] )
                 return False
                 
-            if self.verbose:
-                print( "When {} = {}:".format( n, i ) )
-                print( " ".join( "{:>6}".format( str( x ) ) for x in neighborVars ) )
-                print( "|".join( "------" for x in neighborVars ) )
-                for v in values:
-                    print( " ".join( "{:6}".format( y ) for y in v ) )
-                print()
-
-            self.model.addConstraint( ConditionalConstraint(i, TupleConstraint( values )),
-                                      [n] + neighborVars )
-            
+            self.addConditionalTupleConstraint( i, values, [n] + neighborVars )
+                        
         return True
 
     def _convertNodes( self, soln ):
@@ -415,16 +430,19 @@ class MatchFinder(object):
     def matches( self ):
         if self.impossible:
             return []
-        
+
+        self.endReason = "Maximum matches reached."
         start = time.time()
         solns = []
         x = self.model.getSolutionIter()
         while len( solns ) < self.maxMatches:
             try:
                 solns.append( next( x ) )
-                if time.time() - start < self.maxMatchTime:
+                if time.time() - start > self.maxMatchTime:
+                    self.endReason = "Maximum time exceeded."
                     break
             except StopIteration:
+                self.endReason = "No more matches."
                 break
         end = time.time()
 

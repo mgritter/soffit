@@ -189,9 +189,9 @@ class TestMatchAndReplace(unittest.TestCase):
         g2 = app.result()
 
         self.assertEqual( len( g2.nodes ), len( nodesG ) )
-
+        
     @given( undirected_subgraph_and_extra_edges() )
-    @settings( deadline=200 )
+    @settings( deadline=600 )
     def test_cant_delete_subgraph( self, ug ):
         (edges, moreEdges) = ug
 
@@ -247,3 +247,5 @@ class TestMatchAndReplace(unittest.TestCase):
         m = finder.matches()
         self.assertEqual( len( m ), 0 )
 
+if __name__ == "__main__":
+    unittest.main()

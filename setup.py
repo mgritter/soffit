@@ -19,7 +19,7 @@ setup(
     long_description = long_description,
     long_description_content_type = "text/markdown",
 
-    packages = 'soffit',
+    packages = ['soffit'],
     install_requires = ['pyparsing','networkx','python-constraint'],
 
     url = "https://github.com/mgritter/soffit",

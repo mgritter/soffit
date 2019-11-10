@@ -231,6 +231,10 @@ def showMatches( l, r, g, outputFile ):
     finder.rightSide( r )
     allMatches = finder.matches()
 
+    if len( allMatches ) == 0:
+        h = parseGraphString( "" )
+        drawMatch( l, r, g, h, m, outputFile )
+        
     for (i,m) in enumerate( allMatches[:20] ):
         if len( allMatches ) > 0:
             fn = outputFile.split( "." )

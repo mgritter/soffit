@@ -146,6 +146,7 @@ class ApplicationState:
         
     def changeGrammar( self, grammar ):
         self.grammar = grammar
+        self.iteration = 0 # FIXME?
         
     def runSingleIter( self ):
         self.graph = chooseAndApply( self.grammar, self.graph, timing=self.timing )

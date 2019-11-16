@@ -68,7 +68,7 @@ def tagsToLabels( g, ignoreEquals = False ):
 
     return rg
 
-def drawSvg( g, filename ):
+def drawSvg( g, filename, dotFile = None, program = None, format = None ):
     toDraw = tagsToLabels( g )
     del toDraw.graph['join']
     del toDraw.graph['rename']
@@ -78,13 +78,17 @@ def drawSvg( g, filename ):
     aGraph.node_attr['style']='filled'
     aGraph.node_attr['fillcolor']='white'
 
-    #aGraph.write( "debug.dot" )
-    if len( g.nodes ) > 1000:
-        aGraph.draw( filename, prog='sfdp' )
-    else:
-        aGraph.draw( filename, prog='neato' )
+    if dotFile is not None:
+        aGraph.write( dotFile )
 
-    
+    if program is None:
+        if len( g.nodes ) > 1000:
+            aGraph.draw( filename, prog='sfdp', format=format )
+        else:
+            aGraph.draw( filename, prog='neato', format=format )
+    else:
+        aGraph.draw( filename, prog=program, format=format )
+            
 def unspline( coord ):
     c = coord.split( "," )
     if len( c ) == 2:

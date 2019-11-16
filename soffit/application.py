@@ -87,7 +87,7 @@ class Timing(object):
             print( "Mean: {:.3f} / {:3f}".format( enumAvg, avg ) )
             print( "Max: {:.3f}".format( max( v ) ) )
                 
-def chooseAndApply( grammar, graph, timing = None ):
+def chooseAndApply( grammar, graph, timing = None, verbose = False ):
     nRules = len( grammar.rules )
     # This is a little wasteful but simpler than removing rules
     # since they don't currently have an equality check.
@@ -115,7 +115,8 @@ def chooseAndApply( grammar, graph, timing = None ):
                 continue
             
             chosenMatch = random.choice( possibleMatches )
-            print( chosenMatch )
+            if verbose:
+                print( chosenMatch )
             rule = RuleApplication( finder, chosenMatch )
             return rule.result()
 
@@ -149,7 +150,8 @@ class ApplicationState:
         self.iteration = 0 # FIXME?
         
     def runSingleIter( self ):
-        self.graph = chooseAndApply( self.grammar, self.graph, timing=self.timing )
+        self.graph = chooseAndApply( self.grammar, self.graph, timing=self.timing,
+                                     verbose=self.verbose )
 
         if self.verbose:
             print( "Iteration {}: graph size {}".format( self.iteration,

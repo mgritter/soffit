@@ -70,8 +70,12 @@ def tagsToLabels( g, ignoreEquals = False ):
 
 def drawSvg( g, filename, dotFile = None, program = None, format = None ):
     toDraw = tagsToLabels( g )
-    del toDraw.graph['join']
-    del toDraw.graph['rename']
+    try:
+        del toDraw.graph['join']
+        del toDraw.graph['rename']
+    except KeyError:
+        pass
+    
     aGraph = to_agraph( toDraw )
     aGraph.graph_attr['overlap'] = 'false'
     aGraph.graph_attr['outputorder'] = 'edgesfirst'

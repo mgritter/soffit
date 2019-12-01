@@ -2,7 +2,7 @@
 #
 #   soffit/parse.py
 #
-#   Copyright 2018 Mark Gritter
+#   Copyright 2018-2019 Mark Gritter
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -86,7 +86,8 @@ def _buildUnicodeWord():
     ]
     
     _headChars = \
-        [ chr(c) for c in  [ 0x00A8, 0x00AA, 0x00AD, 0x00AF, 0x2054] ] + \
+        [ chr(c) for c in  [ 0x005F,
+                             0x00A8, 0x00AA, 0x00AD, 0x00AF, 0x2054] ] + \
         [ chr(c) for r in _headRanges for c in r ]
 
     _identRanges = [

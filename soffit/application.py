@@ -2,7 +2,7 @@
 #
 #   soffit/application.py
 #
-#   Copyright 2018 Mark Gritter
+#   Copyright 2018-2019 Mark Gritter
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -157,7 +157,7 @@ class ApplicationState:
             print( "Iteration {}: graph size {}".format( self.iteration,
                                                          len( self.graph.nodes ) ) )            
         if self.callback is not None:
-            self.callback( iteration, g )
+            self.callback( self.iteration, self.graph )
             
         self.iteration += 1
         
@@ -198,9 +198,11 @@ def applyRuleset( rulesetFilename,
     The callback function is called with (iteration, graph) at each step."""
 
     grammar = loadGrammar( rulesetFilename )            
-    app = ApplicationState( initialGraph=g, grammar=grammar, callback=callback )
+    app = ApplicationState( initialGraph=grammar.start,
+                            grammar=grammar,
+                            callback=callback )
     app.run( maxIterations=maxIterations )
-    soffit.display.drawSvg( g, outputFile )
+    soffit.display.drawSvg( app.graph, outputFile )
 
 def main():
     parser = argparse.ArgumentParser()

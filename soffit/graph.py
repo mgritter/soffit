@@ -594,8 +594,15 @@ class RuleApplication(object):
         
         for v in self.join:
             u = self.rename[ v ]
-            m_v = self.match.node( v )
             m_u = self.match.node( u )
+            try:
+                m_v = self.match.node( v )
+            except KeyError:
+                # A merge was specified for a node introduced in the right-hand
+                # side of the rule.
+                assert v not in self.left.node
+                continue
+                
             # Matching could have identified two nodes that are both to be merged
             # or are already merged!            
             if m_v != m_u and m_v not in alreadyMerged:

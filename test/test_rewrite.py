@@ -2,7 +2,7 @@
 #
 #   test/test_graph.py
 #
-#   Copyright 2018 Mark Gritter
+#   Copyright 2018-2019 Mark Gritter
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -145,6 +145,23 @@ class TestGraphRewrite(unittest.TestCase):
         self.assertIn( (n_3,n_3), g2.edges )
         self.assertIn( (n_3,n_4), g2.edges )
 
+    def test_merge_new(self):
+        self.perform_rewrite( l = "A[1]; B[2]",
+                              r = "A^C[3]; B[2]; C--B",
+                              g = "A[1]; B[2]; D[4]; A--D" )
+        g2 = self.after
+        self.assertEqual( len( g2.nodes ), 3 )
+        self.assertEqual( len( g2.edges ), 2 )
+
+        ( n_1, n_2, n_3, n_4 ) = self.find_any_tags( g2, '1', '2', '3', '4' )
+
+        self.assertIsNone( n_1 )
+        self.assertIsNotNone( n_2 )
+        self.assertIsNotNone( n_3 )
+        self.assertIsNotNone( n_4 )
+        self.assertIn( (n_3,n_4), g2.edges )
+        self.assertIn( (n_2,n_3), g2.edges )
+        
     def test_two_merges(self):
         # The merged edge could get *either* tag, but it must get one.
         self.perform_rewrite( l = "A[1]; B[2]; C[3]; D[4];",

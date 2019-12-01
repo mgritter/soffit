@@ -162,6 +162,25 @@ class TestGraphRewrite(unittest.TestCase):
         self.assertIn( (n_3,n_4), g2.edges )
         self.assertIn( (n_2,n_3), g2.edges )
         
+    def test_merge_two_new(self):
+        self.perform_rewrite( l = "A[1]; B[2]",
+                              r = "A^C[3]; D^B[4]; C--D",
+                              g = "A[1]; B[2]; G[5]; A--G; B--G" )
+        g2 = self.after
+        self.assertEqual( len( g2.nodes ), 3 )
+        self.assertEqual( len( g2.edges ), 3 )
+
+        ( n_1, n_2, n_3, n_4, n_5 ) = self.find_any_tags( g2, '1', '2', '3', '4', '5' )
+
+        self.assertIsNone( n_1 )
+        self.assertIsNone( n_2 )
+        self.assertIsNotNone( n_3 )
+        self.assertIsNotNone( n_4 )
+        self.assertIsNotNone( n_5 )
+        self.assertIn( (n_3,n_4), g2.edges )
+        self.assertIn( (n_3,n_5), g2.edges )
+        self.assertIn( (n_4,n_5), g2.edges )
+        
     def test_two_merges(self):
         # The merged edge could get *either* tag, but it must get one.
         self.perform_rewrite( l = "A[1]; B[2]; C[3]; D[4];",

@@ -591,17 +591,24 @@ class RuleApplication(object):
         # join has just the nodes that need to be changed
         # rename has the canonical renaming
         alreadyMerged = set()
-        
+
         for v in self.join:
             u = self.rename[ v ]
-            m_u = self.match.node( u )
             try:
+                m_u = self.match.node( u )
                 m_v = self.match.node( v )
             except KeyError:
                 # A merge was specified for a node introduced in the right-hand
                 # side of the rule.
-                assert v not in self.left.node
-                continue
+                # Add an alias as if it were specified in the left-hand side.
+                if u not in self.left:
+                    self.match.addMap( u, self.match.node( v ) )
+                    continue
+                elif v not in self.left:
+                    self.match.addMap( v, self.match.node( u ) )
+                    continue
+                else:
+                    assert False
                 
             # Matching could have identified two nodes that are both to be merged
             # or are already merged!            

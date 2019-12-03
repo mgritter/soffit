@@ -92,11 +92,14 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False ):
     # This is a little wasteful but simpler than removing rules
     # since they don't currently have an equality check.
     ruleAttemptOrder = random.sample( grammar.rules, nRules )
+
+    rule_count = 0
     
     for r in ruleAttemptOrder:
         left = r.leftSide()
         for right in r.rightSide():
-
+            rule_count += 1
+            
             # Covert to directed on-demand
             # FIXME: do it ahead of time if any directed graphs exist in the rule set?
             (left, right, graph) = makeAllDirected( left, right, graph )
@@ -115,10 +118,8 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False ):
                 continue
             
             chosenMatch = random.choice( possibleMatches )
-            if verbose:
-                print( chosenMatch )
             rule = RuleApplication( finder, chosenMatch )
-            return rule.result()
+            return rule.result(), rule_count, len( possibleMatches ), chosenMatch
 
     raise NoMatchException()
 
@@ -150,12 +151,18 @@ class ApplicationState:
         self.iteration = 0 # FIXME?
         
     def runSingleIter( self ):
-        self.graph = chooseAndApply( self.grammar, self.graph, timing=self.timing,
-                                     verbose=self.verbose )
+        self.graph, rules_checked, matches_found, match = \
+                chooseAndApply( self.grammar, self.graph,
+                                timing=self.timing,
+                                verbose=self.verbose )
 
         if self.verbose:
-            print( "Iteration {}: graph size {}".format( self.iteration,
-                                                         len( self.graph.nodes ) ) )            
+            print( "Iteration {:6} | {:6} nodes | {:4} attempts | {:4} matches | {} ".format(
+                self.iteration,
+                len( self.graph.nodes ),
+                rules_checked,
+                matches_found,
+                match ) )            
         if self.callback is not None:
             self.callback( self.iteration, self.graph )
             

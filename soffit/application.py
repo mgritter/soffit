@@ -87,7 +87,8 @@ class Timing(object):
             print( "Mean: {:.3f} / {:3f}".format( enumAvg, avg ) )
             print( "Max: {:.3f}".format( max( v ) ) )
                 
-def chooseAndApply( grammar, graph, timing = None, verbose = False ):
+def chooseAndApply( grammar, graph, timing = None, verbose = False,
+                    pick_first = False ):
     nRules = len( grammar.rules )
     # This is a little wasteful but simpler than removing rules
     # since they don't currently have an equality check.
@@ -106,6 +107,8 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False ):
 
             start = time.time()
             finder = MatchFinder( graph )
+            if pick_first:
+                finder.maxMatches = 1
             finder.leftSide( left )
             finder.rightSide( right )
             possibleMatches = finder.matches()
@@ -137,6 +140,7 @@ class ApplicationState:
         self.callback = callback
         self.verbose = True
         self.timing = None
+        self.fast_mode = False
         
     def startProfile( self ):
         self.timing = Timing()
@@ -154,7 +158,8 @@ class ApplicationState:
         self.graph, rules_checked, matches_found, match = \
                 chooseAndApply( self.grammar, self.graph,
                                 timing=self.timing,
-                                verbose=self.verbose )
+                                verbose=self.verbose,
+                                pick_first=self.fast_mode )
 
         if self.verbose:
             print( "Iteration {:6} | {:6} nodes | {:4} attempts | {:4} matches | {} ".format(

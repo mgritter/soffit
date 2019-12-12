@@ -427,6 +427,18 @@ class MatchFinder(object):
         return { k : self.graph.nodes[v]['orig']
                  for (k,v) in soln.items() }
 
+    def matchExists( self ):
+        """Return true if at least one match exists."""
+        if self.impossible:
+            return False
+
+        x = self.model.getSolutionIter()
+        try:
+            next( x )
+            return True
+        except StopIteration:
+            return False
+        
     def matches( self ):
         if self.impossible:
             return []

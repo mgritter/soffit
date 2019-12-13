@@ -95,7 +95,16 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False,
     ruleAttemptOrder = random.sample( grammar.rules, nRules )
 
     rule_count = 0
-    
+
+    # Only convert the graph once!
+    # FIXME: could we do it even less often than that, maybe carry over from
+    # one interaction to the next?
+    graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )
+    for n in graph:
+        graph.node[n]['orig'] = n
+    graph.graph['node_tag_cache'] = {}
+    graph.graph['edge_tag_cache'] = {}
+
     for r in ruleAttemptOrder:
         left = r.leftSide()
         for right in r.rightSide():
@@ -106,7 +115,7 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False,
             (left, right, graph) = makeAllDirected( left, right, graph )
 
             start = time.time()
-            finder = MatchFinder( graph )
+            finder = MatchFinder( graph, already_labeled = True )
             if pick_first:
                 finder.maxMatches = 1
             finder.leftSide( left )

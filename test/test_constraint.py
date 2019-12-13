@@ -2,7 +2,7 @@
 #
 #   test/test_constraint.py
 #
-#   Copyright 2018 Mark Gritter
+#   Copyright 2018-2019 Mark Gritter
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 import unittest
 from constraint import *
 from soffit.constraint import *
+import networkx as nx
 
 class TestTupleConstraint(unittest.TestCase):
     def test_init( self ):
@@ -376,7 +377,165 @@ class TestOverlapConstraint(unittest.TestCase):
         self.assertEqual( len( vconstraints['b'] ), 0 )
         self.assertEqual( len( vconstraints['x'] ), 1 )
         
-    
+
+class TestGraphConstraint(unittest.TestCase):
+    def domains( self ):
+        return { 'w' : Domain( range( 0, 10 ) ),
+                 'x' : Domain( range( 0, 10 ) ),
+                 'y' : Domain( range( 0, 10 ) ),
+                 'z' : Domain( range( 0, 10 ) ) }
+
+    def sampleGraph( self ):
+        g = nx.DiGraph()
+        g.add_node( 0 )
+        g.add_node( 1, tag="foo" )
+        g.add_node( 2, tag="foo" )
+        g.add_node( 3, tag="bar" )
+        for n in range (4, 10):
+            g.add_node( n )
+        g.add_edge( 1, 5, tag="A" )
+        g.add_edge( 8, 9, tag="A" )
+        g.add_edge( 2, 3, tag="B" )
+        g.add_edge( 2, 4, tag="C" )
+        return g
+                
+    def test_node_incomplete( self ):
+        g = self.sampleGraph()
+        nc = NodeTagConstraint( g, "foo" )
+        self.assertTrue( nc( ['x', 'y', 'z'],
+                             self.domains(),
+                             { 'y': 1 } ) )
+        self.assertFalse( nc( ['x', 'y', 'z'],
+                              self.domains(),
+                              { 'y': 3 } ) )        
+        self.assertFalse( nc( ['x', 'y', 'z'],
+                              self.domains(),
+                              { 'y': 5, 'x' : 1 } ) )
+        self.assertTrue( nc( ['x', 'y', 'z'],
+                             self.domains(),
+                             { 'y': 2, 'x' : 1 } ) )
+
+    def test_node_complete( self ):
+        g = self.sampleGraph()
+        nc = NodeTagConstraint( g, "foo" )
+        self.assertTrue( nc( ['x', 'y' ],
+                             self.domains(),
+                             { 'y': 1, 'x' : 2 } ) )
+        self.assertFalse( nc( ['x', 'y' ],
+                              self.domains(),
+                              { 'y': 1, 'x' : 3 } ) )
+
+        nc2 = NodeTagConstraint( g, None )        
+        self.assertTrue( nc2( ['x', 'y', 'z'],
+                              self.domains(),
+                              { 'x' : 7, 'y' : 8, 'z' : 9 } ) )        
+        self.assertFalse( nc2( ['x', 'y', 'z'],
+                               self.domains(),
+                               { 'x' : 1, 'y' : 8, 'z' : 9 } ) )        
+                
+    def test_node_forward_check( self ):
+        g = self.sampleGraph()
+        nc = NodeTagConstraint( g, "foo" )
+        self.assertFalse( nc( ['x', 'y',],
+                              self.domains(),
+                              { 'x' : 7 } ) )
+        self.assertFalse( nc( ['x', 'y',],
+                              self.domains(),
+                              { 'x' : 8 } ) )
+        self.assertFalse( nc( ['x', 'y',],
+                              self.domains(),
+                              { 'x' : 9 } ) )
+        d = self.domains()
+        self.assertTrue( nc( ['x', 'y',],
+                             d,
+                             { 'x' : 1 },
+                             True ) )
+        self.assertTrue( 7 not in d['y'] )
+        self.assertTrue( 8 not in d['y'] )
+        self.assertTrue( 9 not in d['y'] )
+        self.assertTrue( 1 in d['y'] )
+        self.assertTrue( 2 in d['y'] )
+        self.assertTrue( 3 in d['y'] )
+
+    def test_node_preprocess( self ):
+        g = self.sampleGraph()
+        g.graph['node_tag_cache'] = {
+            "foo" : [1,2],
+            "bar" : [3],
+            None : [0,4,5,6,7,8,9]
+        }
+        nc = NodeTagConstraint( g, "foo" )
+        d = self.domains()
+        nc.preProcess( ['x','y'], d, [], {} )
+        self.assertNotIn( 3, d['x'] )
+        self.assertNotIn( 7, d['y'] )
+        self.assertIn( 1, d['x'] )
+        self.assertIn( 2, d['x'] )
+        self.assertIn( 1, d['y'] )
+        self.assertIn( 2, d['y'] )
+
+    def test_node_preprocess_empty( self ):        
+        g2 = self.sampleGraph()
+        nc2 = NodeTagConstraint( g2, "foo" )
+        d2 = self.domains()
+        nc2.preProcess( ['x','y'], d2, [], {} )
+        self.assertIn( 1, d2['x'] )
+        self.assertIn( 3, d2['x'] )
+
+        g3 = self.sampleGraph()
+        g3.graph['node_tag_cache'] = {}
+        nc3 = NodeTagConstraint( g2, "foo" )
+        d3 = self.domains()
+        nc3.preProcess( ['x','y'], d3, [], {} )
+        self.assertIn( 1, d3['x'] )
+        self.assertIn( 3, d3['x'] )
+
+    def test_edge_incomplete( self ):
+        g = self.sampleGraph()
+        ec = EdgeTagConstraint( g, "A" )
+        self.assertTrue( ec( ['x', 'y'],
+                             self.domains(),
+                             { 'x': 1 } ) )
+        self.assertFalse( ec( ['x', 'y'],
+                              self.domains(),
+                              { 'x': 2 } ) )        
+        self.assertFalse( ec( ['x', 'y', 'w', 'z'],
+                              self.domains(),
+                              { 'x': 1, 'y' : 5, 'w' : 7 } ) )
+
+    def test_edge_complete( self ):
+        g = self.sampleGraph()
+        ec = EdgeTagConstraint( g, "A" )
+        
+        self.assertTrue( ec( ['x', 'y' ],
+                             self.domains(),
+                             { 'x': 1, 'y' : 5 } ) )
+        self.assertTrue( ec( ['x', 'y' ],
+                             self.domains(),
+                             { 'x': 8, 'y' : 9 } ) )
+        self.assertFalse( ec( ['x', 'y' ],
+                             self.domains(),
+                             { 'x': 9, 'y' : 8 } ) )
+        self.assertFalse( ec( ['x', 'y' ],
+                             self.domains(),
+                             { 'x': 2, 'y' : 3 } ) )
+
+    def test_edge_forward_check( self ):
+        g = self.sampleGraph()
+        nc = EdgeTagConstraint( g, "A" )
+        d = self.domains()
+        self.assertTrue( nc( ['x', 'y',],
+                             d,
+                             { 'x' : 1 },
+                             True ) )
+        self.assertEqual( [5], list( d['y'] ) )
+        
+        d = self.domains()
+        self.assertTrue( nc( ['x', 'y',],
+                             d,
+                             { 'y' : 9 },
+                             True ) )
+        self.assertEqual( [8], list( d['x'] ) )
         
 if __name__ == '__main__':
     unittest.main()

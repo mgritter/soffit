@@ -2,7 +2,7 @@
 #
 #   soffit/constraint.py
 #
-#   Copyright 2018 Mark Gritter
+#   Copyright 2018-2019 Mark Gritter
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,6 +19,173 @@
 
 from constraint import Constraint, Unassigned, Domain
 
+# These two Constraint implementations are much, much slower than using
+# TupleConstraint. I don't understand why.
+# Profiling shows a lot of hideValue calls by the Edge constraint.
+
+class NodeTagConstraint(Constraint):
+    """Given a graph and a tag, make sure any variables identify a node
+    with matching tag. This seems more efficient than enumerating all the 
+    nodes to find one up front, at least in some cases."""
+    def __init__( self, graph, tag ):
+        self.graph = graph
+        self.tag = tag
+        self.mismatch_cache = set()
+            
+    def preProcess(self, variables, domains, constraints, vconstraints):
+        if 'node_tag_cache' not in self.graph.graph:
+            return
+        
+        cache = self.graph.graph['node_tag_cache']
+        if self.tag not in cache:
+            nodes = []
+            for n,t in self.graph.nodes( data="tag" ):
+                if t == self.tag:
+                    nodes.append( n )
+            cache[self.tag] = nodes
+        else:
+            nodes = cache[self.tag]
+            
+        for v in variables:
+            domains[v] = Domain( nodes )
+        
+    def __call__(self, variables, domains, assignments, forwardcheck=False):
+        current = [ (v,assignments.get( v, Unassigned )) for v in variables ]
+
+        for v,n in current:
+            if n is not Unassigned:
+                if n not in self.graph.nodes:
+                    self.mismatch_cache.add( n )
+                    return False
+                if self.graph.nodes[n].get( 'tag', None ) != self.tag:
+                    self.mismatch_cache.add( n )
+                    return False
+            elif forwardcheck:
+                domainValues = set( domains[v] )
+                for x in self.mismatch_cache.intersection( domainValues ):
+                    domains[v].hideValue( x )
+                    
+        return True
+    
+class EdgeTagConstraint(Constraint):
+    """Given a graph and a tag, make sure any pairs of variables identify an 
+    edge with matching tag."""
+    def __init__( self, graph, tag ):
+        self.graph = graph
+        self.tag = tag
+
+    def preProcess(self, variables, domains, constraints, vconstraints):
+        if 'edge_tag_cache' not in self.graph.graph:
+            return
+        
+        cache = self.graph.graph['edge_tag_cache']
+        if self.tag not in cache:
+            edges = []
+            e_0 = set()
+            e_1 = set()
+            for i,j,t in self.graph.edges( data="tag" ):
+                if t == self.tag:
+                    e_0.add( i )
+                    e_1.add( j )
+                    edges.append( (i,j) )
+            cache[self.tag] = edges
+        else:
+            # FIXME: would it be better to switch to representing edges as
+            # edge variables, instead of a pair of node variables?
+            edges = cache[self.tag]
+            e_0 = set( e[0] for e in edges )
+            e_1 = set( e[1] for e in edges )
+
+        vb = iter( variables )
+        for i, j in zip( vb, vb ):
+            if self.graph.is_directed():
+                domains[i] = Domain( e_0 )
+                domains[j] = Domain( e_1 )
+            else:
+                all_nodes = e_0.union( e_1 )
+                domains[i] = Domain( all_nodes )
+                domains[j] = Domain( all_nodes )
+                
+
+    def edge_view( self, i, j ):
+        if self.graph.is_directed():
+            if i is Unassigned:
+                for (i2,j2,t2) in self.graph.in_edges( nbunch=[j], data='tag' ):
+                    if t2 == self.tag:
+                        yield (i2,j2)
+            elif j is Unassigned:
+                for (i2,j2,t2) in self.graph.out_edges( nbunch=[i], data='tag' ):
+                    if t2 == self.tag:
+                        yield (i2,j2)
+            else:
+                assert False
+        else:
+            if i is Unassigned:
+                for (i2,j2,t2) in self.graph.edges( nbunch=[j], data='tag' ):
+                    if t2 == self.tag:
+                        if j2 == j:
+                            yield (i2,j2)
+                        else:
+                            yield (j2,i2)
+            elif j is Unassigned:
+                for (i2,j2,t2) in self.graph.edges( nbunch=[i], data='tag' ):
+                    if t2 == self.tag:
+                        if i2 == i:
+                            yield (i2,j2)
+                        else:
+                            yield (j2,i2)
+            else:
+                assert False
+            
+    def __call__(self, variables, domains, assignments, forwardcheck=False):
+        assert len(variables) % 2 == 0
+
+        current = iter( (v, assignments.get( v, Unassigned ))
+                        for v in variables )
+        
+        for (v_i,i),(v_j,j) in zip( current, current ):
+            if i is not Unassigned and j is not Unassigned:
+                if (i,j) not in self.graph.edges:
+                    return False
+                if self.graph.edges[(i,j)].get( 'tag', None ) != self.tag:
+                    return False
+            else:
+                if i is Unassigned:
+                    prev_i = set( domains[v_i] )
+                    allowed_i = set()                    
+                    for (i2,j2) in self.edge_view( i, j ):
+                        allowed_i.add( i2 )
+                        if not forwardcheck:
+                            return True
+
+                    if len( allowed_i ) == 0:
+                        return False
+                    
+                    if forwardcheck:
+                        for i2 in prev_i.difference( allowed_i ):
+                            domains[v_i].hideValue( i2 )
+                        if not domains[v_i]:
+                            return False
+                        
+                if j is Unassigned:
+                    prev_j = set( domains[v_j] )
+                    allowed_j = set()
+                    for (i2,j2) in self.edge_view( i, j ):
+                        allowed_j.add( j2 )
+                        if not forwardcheck:
+                            return True
+                            
+                    if len( allowed_j ) == 0:
+                        return False
+                    
+                    if forwardcheck:
+                        for j2 in prev_j.difference( allowed_j ):
+                            domains[v_j].hideValue( j2 )
+                        if not domains[v_j]:
+                            return False
+                            
+        return True
+    
 class TupleConstraint(Constraint):
     """Provided a collection of tuples, verify that the variable values
     appear as a tuple (in the order specified for the variables.)."""

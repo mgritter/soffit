@@ -2,7 +2,7 @@
 #
 #   soffit/graph.py
 #
-#   Copyright 2018 Mark Gritter
+#   Copyright 2018-2019 Mark Gritter
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -87,13 +87,24 @@ class MatchFinder(object):
     """
     An object which finds matches for graph grammar rules.
     """
-    def __init__( self, graph, verbose = False ):
+    def __init__( self, graph, verbose = False, already_labeled = False ):
         """Initialize the finder with the graph in which matches are to 
         be found."""
         
         self.originalGraph = graph
+        
         # Relabel for compactness, nodes numbered 0..(n-1)
-        self.graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )
+        if already_labeled:
+            self.graph = graph
+        else:
+            self.graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )            
+            self.graph.graph['node_tag_cache'] = {}
+            self.graph.graph['edge_tag_cache'] = {}
+
+        # FIXME: track number of misses so we can tell if it's worth
+        # walking the whole graph?
+        # self.graph.graph['node_tag_misses'] = {}
+        # self.graph.graph['edge_tag_misses'] = {}
 
         self.model = Problem()
         self.impossible = False
@@ -108,6 +119,24 @@ class MatchFinder(object):
     def checkCompatible( self, lr ):
         if nx.is_directed( self.graph ) != nx.is_directed( lr ):
             raise MatchError( "Convert both graphs to directed first." )
+
+    def nodesForTag( self, tag ):
+        if 'node_tag_cache' in self.graph.graph and tag in self.graph.graph['node_tag_cache']:
+            nodes_matching_tag = self.graph.graph['node_tag_cache'][tag]
+        else:
+            nodes_matching_tag = [ (n,) for n,t in self.graph.nodes( data="tag" ) if t == tag ]
+            if 'node_tag_cache' in self.graph.graph:
+                self.graph.graph['node_tag_cache'][tag] = nodes_matching_tag
+        return nodes_matching_tag
+
+    def edgesForTag( self, tag ):
+        if 'edge_tag_cache' in self.graph.graph and tag in self.graph.graph['edge_tag_cache']:
+            edges_matching_tag = self.graph.graph['edge_tag_cache'][tag]
+        else:
+            edges_matching_tag = [ (i,j) for i,j,t in self.graph.edges( data="tag" ) if t == tag ]
+            if 'edge_tag_cache' in self.graph.graph:
+                self.graph.graph['edge_tag_cache'][tag] = edges_matching_tag
+        return edges_matching_tag
         
     def leftSide( self, leftGraph ):        
         """Specify the left side of a rule; that is, a graph to match."""
@@ -123,22 +152,22 @@ class MatchFinder(object):
         for n in leftGraph.nodes:
             self.model.addVariable( n, range( 0, maxVertex + 1 ) )
 
-            # Add a contraint to only assign to nodes with identical tag.
             # FIXME: no tag is *not* a wildcard, does that match expectations?
             tag = leftGraph.nodes[n].get( 'tag', None )
-            matchingTag = [ (i,) for i in self.graph.nodes
-                            if self.graph.nodes[i].get( 'tag', None ) == tag ]
-            if self.verbose:
-                print( "node", n, "matchingTag", matchingTag )
-            if len( matchingTag ) == 0:
-                self.impossible = True
-                return
 
-            # If node choice is unconstrained, don't bother adding it as
-            # a constraint!
-            if len( matchingTag ) != len( self.graph.nodes ):
-                self.model.addConstraint( TupleConstraint( matchingTag ),
-                                          [n] )
+            if False:
+                # Add a contraint to only assign to nodes with identical tag.
+                self.model.addConstraint( NodeTagConstraint( self.graph, tag ), [n] )
+            else:
+                nodes_matching_tag = self.nodesForTag( tag )
+                if self.verbose:
+                    print( "Nodes matching", tag, nodes_matching_tag )
+                if len( nodes_matching_tag ) == 0:
+                    self.impossible = True
+                    return
+                
+                if len( nodes_matching_tag ) != len( self.graph.nodes ):
+                    self.model.addConstraint( TupleConstraint( nodes_matching_tag ), [n] )
 
         self.model.addConstraint( AllDifferentConstraint(), list( leftGraph.nodes ) )
 
@@ -146,23 +175,22 @@ class MatchFinder(object):
         # again limiting to just exact matching tags.
         for (a,b) in leftGraph.edges:
             tag = leftGraph.edges[a,b].get( 'tag', None )
-            
-            matchingTag = [ i for i in self.graph.edges
-                            if self.graph.edges[i].get( 'tag', None ) == tag ]
-            if self.verbose:
-                print( "edge", (a,b), "matchingTag", matchingTag )
-            if len( matchingTag ) == 0:
-                self.impossible = True
-                return
+            if False:
+                self.model.addConstraint( EdgeTagConstraint( self.graph, tag ), [a,b] )
+            else:
+                edges_matching_tag = self.edgesForTag( tag )
+                if self.verbose:
+                    print( "Edges matching", tag, edges_matching_tag )
+                if len( edges_matching_tag ) == 0:
+                    self.impossible = True
+                    return
+                
+                if not nx.is_directed( leftGraph ):
+                    revEdges = [ (b,a) for (a,b) in edges_matching_tag ]
+                    edges_matching_tag += revEdges
 
-            # Allow reverse matches if the graph is undirected
-            if not nx.is_directed( leftGraph ):
-                revEdges = [ (b,a) for (a,b) in matchingTag ]
-                matchingTag += revEdges
-
-            self.model.addConstraint( TupleConstraint( matchingTag ),
-                                      [ a, b ] )
-                                              
+                self.model.addConstraint( TupleConstraint( edges_matching_tag ), [a,b] )
+                
     def addConditionalTupleConstraint( self, first, rest, variables ):
         if self.currentConstraintVariables != variables:
             self.finishTupleConstraint()

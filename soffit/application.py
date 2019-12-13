@@ -101,7 +101,7 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False,
     # one interaction to the next?
     graph = nx.convert_node_labels_to_integers( graph, label_attribute="orig" )
     for n in graph:
-        graph.node[n]['orig'] = n
+        graph.nodes[n]['orig'] = n
     graph.graph['node_tag_cache'] = {}
     graph.graph['edge_tag_cache'] = {}
 

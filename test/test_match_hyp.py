@@ -85,12 +85,13 @@ class TestMatchAndReplace(unittest.TestCase):
             g.add_edge( s, t )
         return g
         
-    @given( edgeStrategy )
+    @given( edgeStrategy1_to_10 )
     def test_match_self( self, edges ):
         # FIXME: empty graphs do cause problems, they should be fixed
         # or else error out more explicitly.
         assume( len( edges ) > 0 )
-        
+        assume( len( edges ) < 6 )
+                
         l = self.undirectedGraphFromEdgeList( edges )
         g = sg.graphIdentifiersToNumbers( l )
 
@@ -102,7 +103,7 @@ class TestMatchAndReplace(unittest.TestCase):
 
         self.assertGreaterEqual( len( m ), 1 )
         
-    @given( edgeStrategy, edgeStrategy )
+    @given( edgeStrategy1_to_10, edgeStrategy1_to_10 )
     @settings( deadline=1000 )
     # FIXME: An example that takes a long time, I don't know why.
     # @reproduce_failure('3.82.1', b'AK8SGwa+DBoEjBgZRgYJTBgAUQAfDt0VCAECAW8RHBVwGh4bGx4ZDWACFKkFC3MZDwEMExyDGxEAohoWHBi7GgMdHwzZEBsFrgEUcgIaB7kdEAi3EhQX')
@@ -200,6 +201,8 @@ class TestMatchAndReplace(unittest.TestCase):
     @settings( deadline=600 )
     def test_cant_delete_subgraph( self, ug ):
         (edges, moreEdges) = ug
+        assume( len( edges ) < 6 )
+        assume( len( moreEdges ) < 4 )
 
         # OK, build the graph and label the edges so the deletion can only happen
         # in one way (which is disallowed)

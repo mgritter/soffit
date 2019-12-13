@@ -187,7 +187,7 @@ class MatchFinder(object):
                 
                 if not nx.is_directed( leftGraph ):
                     revEdges = [ (b,a) for (a,b) in edges_matching_tag ]
-                    edges_matching_tag += revEdges
+                    edges_matching_tag = edges_matching_tag + revEdges
 
                 self.model.addConstraint( TupleConstraint( edges_matching_tag ), [a,b] )
                 
@@ -262,17 +262,16 @@ class MatchFinder(object):
             indicators = []
             # i = which graph node was picked
             possible = False
-            for i in self.graph.nodes:
+
+            tag = self.left.nodes[n].get( 'tag', None )        
+            nodes_matching_tag = self.nodesForTag( tag )
+            for (i,) in nodes_matching_tag:
                 # We waste a lot of time constructing these
                 # conditions if they're impossible anyway.
                 #
                 # We *could* just pass in a function rather than a table
                 # constraint, since our backend is pyconstraint.  But that
                 # wouldn't be very portable back to a SAT-based solver.
-                tag = self.left.nodes[n].get( 'tag', None )
-                if self.graph.nodes[i].get( 'tag', None ) != tag:
-                    continue
-                        
                 if nx.is_directed( self.graph ):
                     if self._danglingDirected( n, i ):
                         possible = True

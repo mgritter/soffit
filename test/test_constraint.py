@@ -536,6 +536,97 @@ class TestGraphConstraint(unittest.TestCase):
                              { 'y' : 9 },
                              True ) )
         self.assertEqual( [8], list( d['x'] ) )
+
+class TestDanglingConstraint(unittest.TestCase):
+    def domains( self ):
+        return { 'w' : Domain( range( 0, 10 ) ),
+                 'x' : Domain( range( 0, 10 ) ),
+                 'y' : Domain( range( 0, 10 ) ),
+                 'z' : Domain( range( 0, 10 ) ) }
+
+    def test_intermediate_edge( self ):
+        g = nx.DiGraph()
+        for n in range (0, 10):
+            g.add_node( n )
+        g.add_edge( 1, 2 ) 
+        g.add_edge( 1, 3 )
+        g.add_edge( 3, 4 )
+        
+        deleted_nodes = ['y']
+        deleted_edges = [('x', 'y')]
+
+        # 1->2, 1->3, 3->4,  want to delete X->Y and Y
+        # So, X=1 and Y=2 allowed
+        #     X=3 and Y=4 allowed
+        #     X=1 and Y=3 not allowed due to dangling edge 3->4
+        dec = DanglingEdgeConstraint( g, deleted_nodes, deleted_edges )
+        self.assertTrue( dec( ['x', 'y' ],
+                              self.domains(),
+                              { 'x': 1, 'y' : 2 } ) )
+        self.assertTrue( dec( ['x', 'y' ],
+                              self.domains(),
+                              { 'x': 3, 'y' : 4 } ) )
+        self.assertFalse( dec( ['x', 'y' ],
+                               self.domains(),
+                               { 'x': 1, 'y' : 3 } ) )
+        self.assertFalse( dec( ['x', 'y' ],
+                               self.domains(),
+                               { 'x': 2, 'y' : 2 } ) )
+                
+    def test_incomplete( self ):
+        g = nx.DiGraph()
+        for n in range (0, 10):
+            g.add_node( n )
+        g.add_edge( 1, 2 ) 
+        g.add_edge( 1, 3 )
+        g.add_edge( 3, 4 )
+        
+        deleted_nodes = ['x', 'z']
+        deleted_edges = [('w', 'x'), ('y', 'z')]
+        # allowed: (w,x) and (y,z)  are (1,2) and (3,4)
+
+        dec = DanglingEdgeConstraint( g, deleted_nodes, deleted_edges )
+        self.assertTrue( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                              {} ) )
+        self.assertTrue( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                               { 'w': 1 } ) )                
+        self.assertFalse( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                               { 'x': 1 } ) )
+        self.assertFalse( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                               { 'w': 1, 'x' : 3 } ) )
+        self.assertTrue( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                               { 'x': 2, 'z' : 4 } ) )
+        self.assertTrue( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                               { 'x': 4, 'z' : 2 } ) )
+        self.assertFalse( dec( ['w', 'x', 'y', 'z' ], self.domains(),
+                               { 'w' : 2, 'x': 2, 'z' : 4 } ) )
+                
+    def test_single_node( self ):
+        g = nx.DiGraph()
+        for n in range (0, 10):
+            g.add_node( n )
+        g.add_edge( 1, 2 ) 
+        g.add_edge( 1, 3 )
+
+        dec = DanglingEdgeConstraint( g, ['x'], [] )
+        self.assertTrue( dec( ['x' ],
+                              self.domains(),
+                              { 'x': 4 } ) )
+        self.assertTrue( dec( ['x' ],
+                              self.domains(),
+                              { 'x': 5 } ) )
+        self.assertFalse( dec( ['x' ],
+                              self.domains(),
+                              { 'x': 1 } ) )
+        self.assertFalse( dec( ['x' ],
+                              self.domains(),
+                              { 'x': 2 } ) )
+        self.assertFalse( dec( ['x' ],
+                              self.domains(),
+                              { 'x': 3 } ) )
+        
+
+        
         
 if __name__ == '__main__':
     unittest.main()

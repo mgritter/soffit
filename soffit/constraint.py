@@ -294,9 +294,9 @@ class TupleConstraint(Constraint):
         # If some variable is only allowed a subset of values in its domain,
         # then restrict to that subset.
         for (i,v) in enumerate( variables ):
-            for val in domains[v][:]:
-                if val not in self.nthSet[i]:
-                    domains[v].remove( val )
+            allowed = set( domains[v] ).intersection( self.nthSet[i] )
+            domains[v] = Domain( list( allowed ) )
+
         
 
 class ConditionalConstraint(Constraint):
@@ -460,3 +460,51 @@ class NonoverlappingUnorderedPairs(Constraint):
             for v in variables:
                 vconstraints[v].remove( (self, variables) )
     
+# I think this will work for directed edges only.
+class DanglingEdgeConstraint(Constraint):
+    def __init__( self, graph, deletedNodes, deletedEdges ):
+        self.graph = graph
+        self.deletedNodes = deletedNodes
+        self.deletedEdges = deletedEdges
+
+    def __call__(self, variables, domains, assignments, forwardcheck=False):
+        # All the variables are node assignments, some in deletedNodes
+        # and some should be deleted edge endpoints.
+        for n in self.deletedNodes:
+            assert n in variables
+            n_i = assignments.get( n, Unassigned )
+            if n_i is Unassigned:
+                continue
+
+            # Every edge adjacent to n_a must be explicitly deleted, by
+            # being the image of something in deleted_edges. Obviously,
+            # one of the endpoints of those edges is a/n_a itself.
+            relevant_edges = [ (a,b) for (a,b) in self.deletedEdges if a == n
+                               or b == n ]
+            graph_edges = set( self.graph.in_edges( n_i ) )
+            graph_edges.update( self.graph.out_edges( n_i ) )
+
+            if len( graph_edges ) != len( relevant_edges ):
+                # Can't possibly delete all the edges adjacent to n_i
+                return False
+
+            assigned_edges = []
+            for (a,b) in relevant_edges:
+                a_i = assignments.get( a, Unassigned )
+                if a_i is Unassigned:
+                    break
+                b_i = assignments.get( b, Unassigned )
+                if b_i is Unassigned:
+                    break
+                assigned_edges.append( (a_i,b_i) )
+                
+            if len( assigned_edges ) < len( relevant_edges ):
+                # Can't decide yet
+                continue
+
+            if set( assigned_edges ) != graph_edges:
+                # Edges are not all deleted.
+                return False
+            
+        return True
+        

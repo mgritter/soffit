@@ -131,7 +131,8 @@ def chooseAndApply( grammar, graph, timing = None, verbose = False,
             
             chosenMatch = random.choice( possibleMatches )
             rule = RuleApplication( finder, chosenMatch )
-            return rule.result(), rule_count, len( possibleMatches ), chosenMatch
+            # Don't need another copy here, because we made one above.
+            return rule.result( copy=False ), rule_count, len( possibleMatches ), chosenMatch
 
     raise NoMatchException()
 

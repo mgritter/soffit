@@ -243,8 +243,23 @@ class MatchFinder(object):
         if self.verbose:
             print( "Deleted nodes:", dn )
             print( "Deleted edges:", de )
+
+        # Experimental code
+        if True and nx.is_directed( self.graph ):
+            allVars = set( self.deletedNodes )
+            for (i,j) in self.deletedEdges:
+                allVars.add( i )
+                allVars.add( j )
+            allVars = list( allVars )
+            self.model.addConstraint(
+                DanglingEdgeConstraint( self.graph,
+                                        self.deletedNodes,
+                                        self.deletedEdges ),
+                allVars )
+            return
+
         
-        # "danging condition"
+        # "dangling condition"
         # If a node is deleted, then any node with the same endpoint must
         # be explicitly deleted as well.
         # For all n in G that are the image of a deleted node (in L)
@@ -707,11 +722,15 @@ class RuleApplication(object):
             else:
                 self._addEdge( g, (a,b) )
         
-    def result( self ):
+    def result( self, copy = True ):
         if __debug__:
             self.verify()
+
+        if copy:
+            g = self.beforeGraph.copy()
+        else:
+            g = self.beforeGraph
             
-        g = self.beforeGraph.copy()
         self._deleteEdges( g )
         self._deleteNodes( g )
         g = self._mergeNodes( g )

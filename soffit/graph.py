@@ -169,13 +169,22 @@ class MatchFinder(object):
                 if len( nodes_matching_tag ) != len( self.graph.nodes ):
                     self.model.addConstraint( TupleConstraint( nodes_matching_tag ), [n] )
 
+
         self.model.addConstraint( AllDifferentConstraint(), list( leftGraph.nodes ) )
+
+        # It doesn't seem worth handling the node constraints, which are completely
+        # handled by preprocessing anyway.  But the edge constraints are more
+        # expensive?
+        edge_constraints = {}
 
         # Add an allowed assignment for each edge that must be matched,
         # again limiting to just exact matching tags.
         for (a,b) in leftGraph.edges:
             tag = leftGraph.edges[a,b].get( 'tag', None )
-            if False:
+
+            if tag in edge_constraints:
+                self.model.addConstraint( edge_constraints[tag], [a,b] )
+            elif False:
                 self.model.addConstraint( EdgeTagConstraint( self.graph, tag ), [a,b] )
             else:
                 edges_matching_tag = self.edgesForTag( tag )
@@ -189,7 +198,9 @@ class MatchFinder(object):
                     revEdges = [ (b,a) for (a,b) in edges_matching_tag ]
                     edges_matching_tag = edges_matching_tag + revEdges
 
-                self.model.addConstraint( TupleConstraint( edges_matching_tag ), [a,b] )
+                tc = TupleConstraint( edges_matching_tag )
+                self.model.addConstraint( tc, [a,b] )
+                edge_constraints[tag] = tc
                 
     def addConditionalTupleConstraint( self, first, rest, variables ):
         if self.currentConstraintVariables != variables:
@@ -244,7 +255,9 @@ class MatchFinder(object):
             print( "Deleted nodes:", dn )
             print( "Deleted edges:", de )
 
-        # Experimental code
+        # Experimental code, seems to pass tests.
+        # The old implementation would be needed if we wanted to switch
+        # to a SAT solver.
         if True and nx.is_directed( self.graph ):
             allVars = set( self.deletedNodes )
             for (i,j) in self.deletedEdges:
@@ -283,10 +296,7 @@ class MatchFinder(object):
             for (i,) in nodes_matching_tag:
                 # We waste a lot of time constructing these
                 # conditions if they're impossible anyway.
-                #
-                # We *could* just pass in a function rather than a table
-                # constraint, since our backend is pyconstraint.  But that
-                # wouldn't be very portable back to a SAT-based solver.
+                # Hence the alternate implementation above.
                 if nx.is_directed( self.graph ):
                     if self._danglingDirected( n, i ):
                         possible = True

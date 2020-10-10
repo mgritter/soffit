@@ -4,6 +4,13 @@ A simple-to-use graph grammar engine
 This project is inspired by Tracery, and seeks to provide a way to get
 started with graph grammars that is nearly as easy.
 
+## Online implementation
+
+You can play with Soffit live at http://soffit.combinatorium.com or https://mgritter.github.io/soffit-web
+
+The code for the front end is at [mgritter/soffit-web](https://github.com/mgritter/soffit-web); it uses an AWS Lambda backend to run
+Soffit, and [d3-graphviz](https://github.com/magjac/d3-graphviz) to perform client-side rendering.
+
 ## Getting started
 
 Tutorial coming soon.

@@ -118,4 +118,14 @@ a lot of different colors.
 
 [source code](pentomino.json)
 
+### Graphs with Euler Circuits ###
+
+This rule enerates a graph and its euler circuit simultaneously.  See ["What is an example problem of an Eulerian circuit with an answer" on Quora](https://www.quora.com/What-is-an-example-problem-of-an-Eulerian-circuit-with-an-answer/answer/Mark-Gritter).
+
+The graph is encoded with nodes tagged "node" and edges tagged "edge", so it
+would require an additional set of transformations to display normally.
+
+![A nine-node graph with an Euler Cycle](euler-circuit.svg)
+
+[source code](euler-circuit.json)
 

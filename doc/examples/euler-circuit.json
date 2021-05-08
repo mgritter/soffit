@@ -1,0 +1,10 @@
+{ 
+  "version": "0.1", 
+  "start": "X[node]; Y[node]; Z[node]; XY[edge]; XY->X; XY->Y; YZ[edge]; YZ->Y; YZ->Z; ZX[edge]; ZX->X; ZX->Z; XY->YZ->ZX->XY [cycle]", 
+ 
+  "Z[node]; PZ[edge]; PZ->Z; ZS[edge]; ZS->Z; PZ->ZS[cycle]": 
+  "Z[node]; PZ[edge]; PZ->Z; ZS[edge]; ZS->Z; A[node]; ZA[edge]; ZA->Z; ZA->A; PZ->ZA [cycle]; B[node]; AB[edge]; AB->A; AB->B; ZA->AB [cycle]; BZ[edge]; BZ->B; BZ->Z; AB->BZ [cycle]; BZ->ZS[cycle]", 
+ 
+  "A[node]; PA[edge]; PA->A; AS[edge]; AS->A; PA->AS[cycle]; B[node]; C[node];" :  
+  "A[node]; PA[edge]; PA->A; AS[edge]; AS->A; B[node]; AB[edge]; AB->A; AB->B; PA->AB [cycle]; C[node]; BC[edge]; BC->B; BC->C; AB->BC [cycle]; CA[edge]; CA->C; CA->A; BC->CA [cycle]; CA->AS [cycle];" 
+} 

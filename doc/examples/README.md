@@ -129,3 +129,14 @@ would require an additional set of transformations to display normally.
 
 [source code](euler-circuit.json)
 
+### Gists ###
+
+These gists can be loaded directly into [Soffit's online environemnt](http://soffit.combinatorium.com/grammar).
+
+* Generating combinatorical games: https://gist.github.com/mgritter/41d379eacdbb4527d1cee94c07c0748f
+* A random walk: https://gist.github.com/mgritter/5547d191249eae4ebe2cd0e3bb6d64d6
+* An exactly 101-node tree: https://gist.github.com/mgritter/8f9d68e1f8f1bf7cfec5ee618cc337fc
+* A binary tree with color applied: https://gist.github.com/mgritter/7775e1a2adeef499a66dde9a88692142
+* Use DPO rules to apply a guard: https://gist.github.com/mgritter/c609c9df59d3219ffa1901131d2841c2
+* The Busy Beaver Turing machine with 4 states: https://gist.github.com/mgritter/15c8eef8bdcb0dfbe900c8057a74a079
+* Random graph on five nodes: https://gist.github.com/mgritter/69d7be4d1d8255839201535897514ca6
